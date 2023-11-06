@@ -152,7 +152,8 @@ propagateInEqSymbol :: (Ord c)
                     -- | Target Boundary
                     -> SolverState c Bool
                     -- | Similat to @declareInEq@
-propagateInEqSymbol (I _) _ _ = return True
+propagateInEqSymbol (I _) _ _ =
+  return True -- No need to update numbers
 propagateInEqSymbol (C c) rel bound = do
   (Range low up) <- getRange c
   case rel of    
@@ -190,6 +191,7 @@ propagateInEqProduct (P [symb]) rel target_bound = propagateInEqSymbol symb rel 
 propagateInEqProduct (P ss) rel target_bound =
   and <$> mapM (uncurry propagate) (zipWith (curry (second P)) ss (parts ss))
   where
+    -- a <= x * y => a/y <= x and a/x <= y
     propagate symb prod = propagateInEqSymbol
                           symb rel
                           target_bound
@@ -211,6 +213,7 @@ propagateInEqSoP (S [P [symb]]) rel target_bound = propagateInEqSymbol symb rel 
 propagateInEqSoP (S ps) rel target_bound =
   and <$> mapM (uncurry propagate) (zipWith (curry (second S)) ps (parts ps))
   where
+    -- a <= x + y => a - y <= x and a - x <= y
     propagate prod sm = propagateInEqProduct
                         prod rel
                         (mergeSoPSub target_bound sm)
@@ -231,6 +234,8 @@ declareInEq op u v =
   let
     (u', v') = splitSoP u v
   in do
+    -- If inequality holds with current interval information
+    -- then no need to update it
     -- res <- assert (SoPE u' v' op)
     -- if res then return True
       -- else
@@ -284,6 +289,16 @@ assertRange :: Ord c
             -> SolverState c Bool
             -- | Similar to @assert@ but uses only intervals from the state to check @lhs <= rhs@
 assertRange lhs rhs = do
+  us <- getUnifiers
+  let
+    lhs' = substsSoP us lhs
+    rhs' = substsSoP us rhs
+  r1 <- assertRange' lhs rhs
+  r2 <- assertRange' lhs' rhs'
+  return (r1 || r2)
+
+assertRange' :: Ord c => SoP c -> SoP c -> SolverState c Bool
+assertRange' lhs rhs = do
   (Range _ up1) <- getRangeSoP lhs
   (Range low2 _) <- getRangeSoP rhs
   case (up1,low2) of
@@ -292,6 +307,8 @@ assertRange lhs rhs = do
     (Bound (S [P [I i1]]), Bound (S [P [I i2]]))
       -> return (i1 <= i2)
     (Bound ub1,            Bound lb2)
+      -- Orders of recursive checks matters
+      -- @runLemma2@ in the tests loops indefinitely
       -> assert (SoPE lhs lb2 LeR)
          <|> assert (SoPE ub1 rhs LeR)
          <|> assert (SoPE ub1 lb2 LeR)
@@ -313,6 +330,38 @@ assertNewton lhs rhs = do
     (Right _, _) -> return False
     (_,Right _) -> return False
     (_,_)       -> return True
+      one   = toSoP (I 1)
+      -- Add one to expressions to find negative values and not zeros
+      expr1 = mergeSoPAdd (mergeSoPSub rhs lhs) one
+      expr2 = mergeSoPAdd (mergeSoPSub rhs' lhs') one
+
+    res1 <- checkExpr expr1
+    res2 <- checkExpr expr2
+
+    return (res1 || res2)
+  where
+    checkExpr :: (Ord c) => SoP c -> SolverState c Bool
+    checkExpr expr
+      | (Right binds) <- newtonMethod expr
+      = not <$> checkBinds binds
+      | otherwise
+      = return True
+    
+    checkBinds :: (Ord c, Ord n, Floating n) => Map c n -> SolverState c Bool
+    checkBinds binds = and <$> mapM (uncurry (checkBind binds)) (M.toList binds)
+
+    checkBind :: (Ord c, Ord n, Floating n) => Map c n -> c -> n -> SolverState c Bool
+    checkBind binds c v = do
+      (Range left right) <- getRange c
+      return (checkLeft binds c v left && checkRight binds c v right)
+
+    checkLeft :: (Ord c, Ord n, Floating n) => Map c n -> c -> n -> Bound c -> Bool
+    checkLeft _ _ _ Inf = True
+    checkLeft binds c v (Bound sop) = evalSoP sop binds <= v
+
+    checkRight :: (Ord c, Ord n, Floating n) => Map c n -> c -> n -> Bound c -> Bool
+    checkRight _ _ _ Inf = True
+    checkRight binds c v (Bound sop) = v <= evalSoP sop binds
 
 -- ^ Assert if given expression holds in the current environment
 assert :: Ord c

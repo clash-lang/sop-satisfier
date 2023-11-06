@@ -1,11 +1,18 @@
 module NewtonsMethod
+  ( newtonMethod
+  , evalSoP
+  )
 where
 
 import Data.Map (Map)
 import qualified Data.Map as M
 import Data.Maybe (fromJust)
 
-import SoP (SoP(..), Product(..), Symbol(..), constants)
+import SoP
+  ( SoP(..)
+  , Product(..)
+  , Symbol(..)
+  , constants)
 
 evalSoP :: (Ord c, Floating n) => SoP c -> Map c n -> n
 evalSoP (S []) _ = 0
