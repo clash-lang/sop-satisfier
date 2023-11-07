@@ -173,53 +173,53 @@ tests = testGroup "lib-tests"
   [ testGroup "Equality tests"
     [ testGroup "True"
       [ testCase "m = n1 + 1 implies n + m = n + n1 + 1" $
-        runEqualityGiven1 @=? Just True
+        Just True @=? runEqualityGiven1
       , testCase "m = n1 + 1 implies n * m = n + n * n1" $
-        runEqualityGiven2 @=? Just True
+        Just True @=? runEqualityGiven2
       , testCase "m = n1 + 1 implies n^m = n*n^n1" $
-        runEqualityGiven3 @=? Just True
+        Just True @=? runEqualityGiven3
       ]
     , testGroup "False"
       [ testCase "x + 2 == x + 3" $
+        Just False @=?
         evalStatements (assert
                         (SoPE (S [P [C "x"], P [I 2]]) (S [P [C "x"], P [I 3]]) EqR))
-        @=? Just False
       ]
     ]
   , testGroup "Inequality tests"
     [ testGroup "True"
       [ testCase "Transitivity: i <= j and j <= k implies i <= k" $
-        runTransitivity @=? Just True
+        Just True @=? runTransitivity
       , testCase "Antisymmetry with zero: x is Natural and x <= 0 implies x = 0" $
-        runAntisymmetryZero @=? Just True
+        Just True @=? runAntisymmetryZero
       , testCase "Antisymmetry with non-zero: x <= 5 and x >= 5 implies x = 5" $
-        runAntisymmetryNonZero @=? Just True
+        Just True @=? runAntisymmetryNonZero
       , testCase "Strongly greater: j <= n and 1 <= n - j imples 1 + j <= n" $
-        runLemma2 @=? Just True
+        Just True @=? runLemma2
       , testCase "Composite function: x^3-2x^2+4<=2^x+3x^2+3" $
-        runTrueInEq @=? Just True
+        Just True @=? runTrueInEq
       , testCase "Overlapping ranges: 4 <= x implies 2 <= x" $
-        runOverlapInEq @=? Just True
+        Just True @=? runOverlapInEq
       , testGroup "Trivial"
         [ testCase "a <= a + 1" $
+          Just True @=?
           evalStatements (assert
                           (SoPE (S [P [C "a"]]) (S [P [C "a"], P [I 1]]) LeR))
-          @=? Just True
         , testCase "1 <= 2^a" $
+          Just True @=?
           evalStatements (assert
                           (SoPE (S [P [I 1]]) (S [P [E (S [P [I 2]]) (P [C "a"])]]) LeR))
-          @=? Just True
         ]
       ]
     , testGroup "False"
       [ testCase "Composite function x^3-2x^2+4<=2^x+x^2+3" $
-        runFalseInEq @=? Just False
+        Just False @=? runFalseInEq
       , testCase "1 <= m and m <= rp implies 1 <= rp - m" $
-        runFalseInEq2 @=? Just False
+        Just False @=? runFalseInEq2
       , testCase "4a <= 2a" $
+        Just False @=?
         evalStatements (assert
                         (SoPE (S [P [I 4, C "a"]]) (S [P [I 2, C "a"]]) LeR))
-        @=? Just False
       ]
     ]
   , testGroup "Ranges"
