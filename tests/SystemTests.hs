@@ -165,6 +165,29 @@ overlapInEq =
 runOverlapInEq :: TestResult
 runOverlapInEq = evalStatements overlapInEq
 
+eqSubst :: TestCase
+eqSubst =
+  do
+    declare (SoPE
+             (S [P [C "x"], P [I 1]])
+             (S [P [C "n1"], P [C "m"], P [I 1]])
+             EqR)
+    declare (SoPE
+             (S [P [C "m"]])
+             (S [P [C "n1"]])
+             EqR)
+    declare (SoPE
+             (S [P [C "n1"]])
+             (S [P [C "n2"], P [C "m1"], P [I 1]])
+             EqR)
+    assert (SoPE
+            (S [P [I 1], P [C "n2"], P [C "m1"]])
+            (S [P [C "n1"]])
+            EqR)
+
+runEqSubst :: TestResult
+runEqSubst = evalStatements eqSubst
+
 main :: IO ()
 main = defaultMain tests
 
@@ -178,12 +201,30 @@ tests = testGroup "lib-tests"
         Just True @=? runEqualityGiven2
       , testCase "m = n1 + 1 implies n^m = n*n^n1" $
         Just True @=? runEqualityGiven3
+      , testCase "n + 1 = n1 + m + 1 and m = n1 and n1 = n2 + m1 + 1 implies 1 + n2 + m1 = n1" $
+        Just True @=? runEqSubst
+      , testCase "9 = x + x + x" $
+        Just True @=?
+        evalStatements (assert
+                        (SoPE (S (replicate 3 (P [C "x"]))) (S [P [I 9]]) EqR))
+      , testCase "6 = 2*y+4" $
+        Just True @=?
+        evalStatements (assert
+                        (SoPE (S [P [I 2, C "x"], P [I 4]]) (S [P [I 6]]) EqR))
       ]
     , testGroup "False"
-      [ testCase "x + 2 == x + 3" $
+      [ testCase "x + 2 /= x + 3" $
         Just False @=?
         evalStatements (assert
                         (SoPE (S [P [C "x"], P [I 2]]) (S [P [C "x"], P [I 3]]) EqR))
+      , testCase "8 /= x + x + x" $
+        Just False @=?
+        evalStatements (assert
+                        (SoPE (S (replicate 3 (P [C "x"]))) (S [P [I 8]]) EqR))
+      , testCase "7 /= 2*y+4" $
+        Just False @=?
+        evalStatements (assert
+                        (SoPE (S [P [I 2, C "x"], P [I 4]]) (S [P [I 7]]) EqR))
       ]
     ]
   , testGroup "Inequality tests"
