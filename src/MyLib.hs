@@ -1,8 +1,7 @@
 {-# LANGUAGE RecordWildCards #-}
-{-# LANGUAGE LambdaCase #-}
 
 module MyLib
-  ( SolverState(..)
+  ( SolverState
   , declare
   , assert
   , runStatements
@@ -164,7 +163,7 @@ propagateInEqSymbol (C c) rel bound = do
         -> putRange c (Range low rangeBound)
     GeR -- TODO: Check for update being valid (newLowBound <= upBound)
       | low == Bound (toSoP (I 0)) -- Range isn't bounded from the bottom can unconditionally update
-        -> putRange c (Range rangeBound up) 
+        -> putRange c (Range rangeBound up)
       | otherwise -- TODO: Check for the range not being widened
         -> putRange c (Range rangeBound up)
     EqR -> error "propagateInEqSymbol:EqR: unreachable"
