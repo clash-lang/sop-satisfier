@@ -1,12 +1,14 @@
 {-# LANGUAGE RecordWildCards #-}
 
-module Unify
+module SoPSat.Unify
 where
 
-import SoP (SoP (..), Product (..), Symbol (..),
-            toSoP, normaliseExp, mergeSoPAdd, mergeSoPMul)
 import Data.List (intersect, (\\), nub, partition)
 import Data.Function (on)
+
+import SoPSat.SoP (SoP (..), Product (..), Symbol (..),
+            toSoP, normaliseExp, mergeSoPAdd, mergeSoPMul)
+
 
 data Unifier c
   = Subst { sConst :: c

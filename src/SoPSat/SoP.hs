@@ -1,9 +1,7 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE InstanceSigs #-}
-{-# LANGUAGE TypeSynonymInstances #-}
 
-module SoP
+module SoPSat.SoP
   ( -- * SoP Types
     Symbol (..)
   , Product (..)
@@ -17,6 +15,7 @@ module SoP
   , mergeSoPAdd
   , mergeSoPMul
   , mergeSoPSub
+  , mergeSoPDiv
   , normaliseExp
   , simplifySoP
   -- * Relations
@@ -227,7 +226,7 @@ mergeSoPSub :: (Ord c) => SoP c -> SoP c -> SoP c
 mergeSoPSub a b = mergeSoPAdd a (mergeSoPMul (toSoP (I (-1))) b)
 
 mergeSoPDiv :: (Ord c) => SoP c -> SoP c -> (SoP c, SoP c)
-mergeSoPDiv (S ps1) (S ps2) = undefined
+mergeSoPDiv (S _ps1) (S _ps2) = undefined
 
 constants :: (Ord c) => SoP c -> Set c
 constants = S.unions . map constsProduct . unS

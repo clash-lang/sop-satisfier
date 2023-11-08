@@ -4,7 +4,7 @@ import Test.Tasty.HUnit
   , (@=?)
   )
 
-import SoP
+import SoPSat.SoP
   ( SoP(..)
   , Product(..)
   , Symbol(..)
@@ -13,7 +13,13 @@ import SoP
   , mergeSoPAdd
   , mergeSoPSub
   )
-import MyLib (SolverState, evalStatements, declare, assert)
+import SoPSat.Satisfier
+  ( SolverState
+  , evalStatements
+  , declare
+  , assert
+  )
+
 
 type TestCase   = SolverState String Bool
 type TestResult = Maybe Bool
@@ -207,7 +213,7 @@ tests = testGroup "lib-tests"
         Just True @=?
         evalStatements (assert
                         (SoPE (S (replicate 3 (P [C "x"]))) (S [P [I 9]]) EqR))
-      , testCase "6 = 2*y+4" $
+      , testCase "6 = 2 * y + 4" $
         Just True @=?
         evalStatements (assert
                         (SoPE (S [P [I 2, C "x"], P [I 4]]) (S [P [I 6]]) EqR))

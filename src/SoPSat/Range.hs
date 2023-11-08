@@ -1,4 +1,4 @@
-module Range
+module SoPSat.Range
   ( Range(..)
   , Bound(..)
   , boundSoP
@@ -8,8 +8,7 @@ module Range
   )
 where
 
-import SoP
-import NewtonsMethod
+import SoPSat.SoP
 
 
 data Bound c
@@ -27,28 +26,6 @@ data Range c
     , upper :: Bound c
     }
   deriving (Eq, Show)
-
-
-data Sign
-  = Negative
-  | Positive
-  deriving Eq
-
-productSign :: Product c -> Sign
-productSign (P ((I i):_))
-  | i < 0 = Negative
-  | otherwise = Positive
-productSign _ = Positive
-
-sopSign :: SoP c -> Maybe Sign
-sopSign (S []) = Just Positive
-sopSign (S (p:ps)) = let
-    prodSign = productSign p
-    sumSign = sopSign (S ps)
-  in case (prodSign,sumSign) of
-       (a,Just b)
-         | a == b -> Just b
-       _ -> Nothing
 
 
 boundAdd :: (Ord c) => Bound c -> Bound c -> Bound c

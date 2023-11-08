@@ -1,4 +1,4 @@
-module NewtonsMethod
+module SoPSat.NewtonsMethod
   ( newtonMethod
   , evalSoP
   )
@@ -8,7 +8,7 @@ import Data.Map (Map)
 import qualified Data.Map as M
 import Data.Maybe (fromJust)
 
-import SoP
+import SoPSat.SoP
   ( SoP(..)
   , Product(..)
   , Symbol(..)
