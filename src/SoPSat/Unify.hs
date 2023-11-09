@@ -132,17 +132,17 @@ unifiers (S ((P [I i]):ps1)) (S ((P [I j]):ps2))
 -- (a + c) ~ (b + c) ==> [a := b]
 unifiers s1@(S ps1) s2@(S ps2) = case splitSoP s1 s2 of
   (s1',s2')
-    | s1' /= s1 || s2' /= s1
+    | s1' /= s1 || s2' /= s2
     -> unifiers s1' s2'
   _ | null psx
     , length ps1 == length ps2
     -> case nub (concat (zipWith (\x y -> unifiers (S [x]) (S [y])) ps1 ps2)) of
-        []  -> unifiers' (S ps1) (S ps2)
+        []  -> unifiers' s1 s2
         [k] -> [k]
         _   -> []
     | null psx
-    -> []
-  _ -> unifiers (S ps1'') (S ps2'')
+    -> unifiers' s1 s2
+  _ -> unifiers' (S ps1'') (S ps2'')
   where
     ps1'  = ps1 \\ psx
     ps2'  = ps2 \\ psx
@@ -152,7 +152,11 @@ unifiers s1@(S ps1) s2@(S ps2) = case splitSoP s1 s2 of
           | otherwise = ps2'
     psx = ps1 `intersect` ps2
 
-unifiers' :: SoP c -> SoP c -> [Unifier c]
+unifiers' :: (Ord c) => SoP c -> SoP c -> [Unifier c]
+unifiers' (S [P [I i],P [C v]]) s2
+  = [Subst v (mergeSoPAdd s2 (toSoP (I (negate i))))]
+unifiers' s1 (S [P [I i],P [C v]])
+  = [Subst v (mergeSoPAdd s1 (toSoP (I (negate i))))]
 unifiers' _ _ = []
 
 splitSoP :: (Ord c) => SoP c -> SoP c -> (SoP c, SoP c)

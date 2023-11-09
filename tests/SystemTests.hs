@@ -194,6 +194,16 @@ eqSubst =
 runEqSubst :: TestResult
 runEqSubst = evalStatements eqSubst
 
+eqSubst2 :: TestCase
+eqSubst2 =
+  do
+    declare (SoPE (S [P [I 1]]) (S [P [C "y"]]) LeR)
+    declare (SoPE (S [P [I 1], P [C "x"]]) (S [P [I 2,C "y"]]) EqR)
+    assert (SoPE (S [P [I (-1)],P [I 2,C "y"]]) (S [P [C "x"]]) EqR)
+
+runEqSubst2 :: TestResult
+runEqSubst2 = evalStatements eqSubst2
+
 main :: IO ()
 main = defaultMain tests
 
@@ -209,6 +219,8 @@ tests = testGroup "lib-tests"
         Just True @=? runEqualityGiven3
       , testCase "n + 1 = n1 + m + 1 and m = n1 and n1 = n2 + m1 + 1 implies 1 + n2 + m1 = n1" $
         Just True @=? runEqSubst
+      , testCase "1 <= y and x + 1 = 2 * y implies 2 * y - 1 = x" $
+        Just True @=? runEqSubst2
       , testCase "9 = x + x + x" $
         Just True @=?
         evalStatements (assert
