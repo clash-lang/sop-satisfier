@@ -86,8 +86,8 @@ propagateInEqSymbol :: (Ord c)
                     -- | Target Boundary
                     -> SolverState c Bool
                     -- | Similat to @declareInEq@
-propagateInEqSymbol (I _) _ _ =
-  return True -- No need to update numbers
+propagateInEqSymbol i@(I _) rel bound
+  = assert (SoPE (toSoP i) bound rel) -- Assert that number isn't being violated
 propagateInEqSymbol (C c) rel bound = do
   (Range low up) <- getRange c
   case rel of
@@ -165,22 +165,25 @@ declareInEq :: (Ord c)
             -- Updates interval information in the state
 declareInEq EqR u v = declareEq u v >> return True
 declareInEq op u v =
-  let
-    (u', v') = splitSoP u v
-  in do
+  do
+    us <- getUnifiers
+    let
+      u' = substsSoP us u
+      v' = substsSoP us v
+      (u'', v'') = splitSoP u' v'
     -- If inequality holds with current interval information
     -- then no need to update it
-    res <- assert (SoPE u' v' op)
+    res <- assert (SoPE u'' v'' op)
     if res then return True
       else
       case op of
         LeR -> do
-          a1 <- propagateInEqSoP u' LeR v'
-          a2 <- propagateInEqSoP v' GeR u'
+          a1 <- propagateInEqSoP u'' LeR v''
+          a2 <- propagateInEqSoP v'' GeR u''
           return (a1 && a2)
         GeR -> do
-          a1 <- propagateInEqSoP u' GeR v'
-          a2 <- propagateInEqSoP v' LeR u'
+          a1 <- propagateInEqSoP u'' GeR v''
+          a2 <- propagateInEqSoP v'' LeR u''
           return (a1 && a2)
 
 -- ^ Declare expression to the state
