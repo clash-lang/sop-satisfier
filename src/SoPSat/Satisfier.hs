@@ -86,8 +86,8 @@ propagateInEqSymbol :: (Ord c)
                     -- | Target Boundary
                     -> SolverState c Bool
                     -- | Similat to @declareInEq@
-propagateInEqSymbol i@(I _) rel bound
-  = assert (SoPE (toSoP i) bound rel) -- Assert that number isn't being violated
+propagateInEqSymbol (I _) _ _ =
+  return True -- No need to update numbers
 propagateInEqSymbol (C c) rel bound = do
   (Range low up) <- getRange c
   case rel of
