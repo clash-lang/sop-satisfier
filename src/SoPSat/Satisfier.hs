@@ -64,7 +64,13 @@ declareEq :: (Ord c)
           -- Adds new unifiers to the state
 declareEq (S [P [C x]]) v = declareEq' x v
 declareEq u (S [P [C x]]) = declareEq' x u
-declareEq u v = putUnifiers $ unifiers u v
+declareEq u v =
+  do
+    us <- getUnifiers
+    let
+      u' = substsSoP us u
+      v' = substsSoP us v
+    putUnifiers $ unifiers u' v'
 
 declareEq' :: (Ord c) => c -> SoP c -> SolverState c ()
 declareEq' x v = putUnifiers [Subst x v]
