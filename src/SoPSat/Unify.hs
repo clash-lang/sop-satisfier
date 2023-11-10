@@ -3,8 +3,10 @@
 module SoPSat.Unify
 where
 
-import Data.List (intersect, (\\), nub, partition)
+import Data.List (intersect, (\\), nub, partition, find)
 import Data.Function (on)
+
+import GHC.Num.Integer (integerSqr)
 
 import SoPSat.SoP (SoP (..), Product (..), Symbol (..),
             toSoP, normaliseExp, mergeSoPAdd, mergeSoPMul)
@@ -95,6 +97,16 @@ unifiers (S [p2]) (S [P [E s1 p1]]) = case collectBases p2 of
   Just (b:bs,ps) | all (== s1) (b:bs) ->
     unifiers (S ps) (S [p1])
   _ -> []
+
+unifiers (S [P [E s (P [I p])]]) (S [P [I j]])
+  = case integerRt p j of
+      Just k -> unifiers s (S [P [I k]])
+      Nothing -> []
+
+unifiers (S [P [I j]]) (S [P [E s (P [I p])]])
+  = case integerRt p j of
+      Just k -> unifiers s (S [P [I k]])
+      Nothing -> []
 
 -- (i * a) ~ j ==> [a := div j i]
 -- Where 'a' is a variable, 'i' and 'j' are integer literals, and j `mod` i == 0
@@ -203,4 +215,10 @@ integerLogBase' b m = e
     go pw = case go (pw ^ 2) of
               (q, e) | q < pw -> (q, 2 * e)
               (q, e) -> (q `quot` pw, 2 * e + 1)
+
+-- Naive implementation of exact integer root
+integerRt :: Integer -> Integer -> Maybe Integer
+integerRt 1 y = Just y
+integerRt 2 y = Just (integerSqr y)
+integerRt x y = find ((== y) . (^ x)) [1..y]
 

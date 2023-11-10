@@ -131,10 +131,12 @@ propagateInEqSymbol (C c) rel bound = do
   return True
   where
     rangeBound = Bound bound
--- propagateInEqSymbol (E b (P [I i])) rel target_bound =
---   undefined
--- propagateInEqSymbol (E (S [P [I i]]) p) rel target_bound =
---   undefined
+propagateInEqSymbol (E b (P [I i])) rel (S [P [I j]])
+  | (Just p) <- integerRt i j
+  = propagateInEqSoP b rel (toSoP (I p))
+propagateInEqSymbol (E (S [P [I i]]) p) rel (S [P [I j]])
+  | (Just e) <- integerLogBase i j
+  = propagateInEqProduct p rel (toSoP (I e))
 propagateInEqSymbol _ _ _ = fail ""
 
 -- ^ Propagates interval information down the Product
@@ -152,6 +154,8 @@ propagateInEqProduct (P ss) rel target_bound =
   and <$> mapM (uncurry propagate) (zipWith (curry (second P)) ss (parts ss))
   where
     -- a <= x * y => a/y <= x and a/x <= y
+    -- Currently simply propagating the bound further
+    -- a <= x * y => a <= x and a <= y
     propagate symb _prod = propagateInEqSymbol
                           symb rel
                           target_bound
