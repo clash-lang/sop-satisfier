@@ -204,6 +204,18 @@ eqSubst2 =
 runEqSubst2 :: TestResult
 runEqSubst2 = evalStatements eqSubst2
 
+multistep :: TestCase
+multistep =
+  do
+    declare (SoPE {lhs = S {unS = [P {unP = [I 1]}]}, rhs = S {unS = [P {unP = [C "n_a7oY"]}]}, op = LeR})
+    declare (SoPE {lhs = S {unS = [P {unP = [I 2,C "n_a7pf"]}]}, rhs = S {unS = [P {unP = [C "n_a7oY"]}]}, op = EqR})
+    r1 <- assert (SoPE {lhs = S {unS = [P {unP = [I (-1)]},P {unP = [I 2,C "n_a7pf"]}]}, rhs = S {unS = [P {unP = [I (-1)]},P {unP = [C "n_a7oY"]}]}, op = EqR})
+    r2 <- assert (SoPE {lhs = S {unS = [P {unP = [I 1]}]}, rhs = S {unS = [P {unP = [C "n_a7pf"]}]}, op = LeR})
+    return (r1 && r2)
+
+runMultistep :: TestResult
+runMultistep = evalStatements multistep
+
 main :: IO ()
 main = defaultMain tests
 
@@ -229,6 +241,8 @@ tests = testGroup "lib-tests"
         Just True @=?
         evalStatements (assert
                         (SoPE (S [P [I 2, C "x"], P [I 4]]) (S [P [I 6]]) EqR))
+      , testCase "Combined: 1 <= m and 2 * n = m implies 2 * n - 1 = m - 2 and 1 <= m" $
+        Just True @=? runMultistep
       ]
     , testGroup "False"
       [ testCase "x + 2 /= x + 3" $

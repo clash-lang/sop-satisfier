@@ -59,21 +59,47 @@ declareEq :: (Ord c)
           -- | First expression
           -> SoP c
           -- | Second expression
-          -> SolverState c ()
+          -> SolverState c Bool
           -- | Similar to @declare@ but handles only equalities
           -- Adds new unifiers to the state
-declareEq (S [P [C x]]) v = declareEq' x v
-declareEq u (S [P [C x]]) = declareEq' x u
 declareEq u v =
   do
     us <- getUnifiers
     let
       u' = substsSoP us u
       v' = substsSoP us v
-    putUnifiers $ unifiers u' v'
+    (Range low1 up1) <- getRangeSoP u'
+    (Range low2 up2) <- getRangeSoP v'
+    lowRes <- boundComp low1 low2
+    upRes <- boundComp up1 up2
 
-declareEq' :: (Ord c) => c -> SoP c -> SolverState c ()
-declareEq' x v = putUnifiers [Subst x v]
+    -- Declaration and assertions of expression is done on the whole domain
+    -- if two expressions are equal, they will have intersecting domain
+    --
+    -- g(x) in [1,5] and forall x  g(x) = f(x) then f(x) in [1,5
+    lowerUpdate <-
+      case (lowRes,low1,low2) of
+        (True,_,Bound lowB2) -> propagateInEqSoP u' GeR lowB2
+        (False,Bound lowB1,_) -> propagateInEqSoP v' GeR lowB1
+        (_,_,_) -> return True
+
+    upperUpdate <-
+      case (upRes,up1,up2) of
+        (True,_,Bound upB2) -> propagateInEqSoP u' LeR upB2
+        (False,Bound upB1,_) -> propagateInEqSoP v' LeR upB1
+        (_,_,_) -> return True
+    
+    declareEq' u v
+    return (lowerUpdate && upperUpdate)
+  where
+    boundComp Inf _ = return False
+    boundComp _ Inf = return True
+    boundComp (Bound a) (Bound b) = assert (SoPE a b LeR)
+
+declareEq' :: (Ord c) => SoP c -> SoP c -> SolverState c ()
+declareEq' (S [P [C x]]) v = putUnifiers [Subst x v]
+declareEq' u (S [P [C x]]) = putUnifiers [Subst x u]
+declareEq' u v = putUnifiers $ unifiers u v
 
 
 -- ^ Updates interval information for a symbol
