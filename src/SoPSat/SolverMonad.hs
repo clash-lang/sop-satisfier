@@ -98,7 +98,7 @@ getUnifiers = gets (\(State _ unifyS) -> unifyS)
 putUnifiers :: (Ord c) => [Unifier c] -> SolverState c ()
 putUnifiers us = do
   (State rangeS unifyS) <- get
-  put (State rangeS (substsSubst us (us ++ unifyS)))
+  put (State rangeS (substsSubst us unifyS ++ us))
 
 
 -- ^ Runs computation returning result and resulting state

@@ -216,6 +216,37 @@ multistep =
 runMultistep :: TestResult
 runMultistep = evalStatements multistep
 
+multistep2 :: TestCase
+multistep2 =
+  do
+    declare (SoPE (S [P [C "m"]]) (S [P [C "n1"], P [I 1]]) EqR)
+    declare (SoPE (S [P [C "m"], P [C "n"]]) (S [P [C "n2"], P [I 1]]) EqR)
+    assert (SoPE (S [P [C "n1"], P [C "n"]]) (S [P [C "n2"]]) EqR)
+
+runMultistep2 :: TestResult
+runMultistep2 = evalStatements multistep2
+
+step3 :: TestCase
+step3 =
+  do
+    declare (SoPE (S [P [I 1], P [C "n"]]) (S [P [C "m"]]) EqR)
+    declare (SoPE (S [P [I 1], P [C "n1"]]) (S [P [C "m"]]) EqR)
+    r1 <- assert (SoPE (S [P [C "n"]]) (S [P [C "n1"]]) EqR)
+    r2 <- assert (SoPE (S [P [I 2], P [I 2, C "n"]]) (S [P [I 2, C "m"]]) EqR)
+    return (r1 && r2)
+
+runStep3 :: TestResult
+runStep3 = evalStatements step3
+
+implication :: TestCase
+implication =
+  do
+    declare (SoPE (S [P [I 2]]) (S [P [E (S [P [I 2]]) (P [C "n"]), E (S [P [I 2]]) (P [C "m"])]]) LeR)
+    assert (SoPE (S [P [I 2]]) (S [P [E (S [P [I 2]]) (P [C "m"]), E (S [P [I 2]]) (P [C "n"])]]) LeR)
+
+runImplication :: TestResult
+runImplication = evalStatements implication
+
 main :: IO ()
 main = defaultMain tests
 
@@ -243,6 +274,10 @@ tests = testGroup "lib-tests"
                         (SoPE (S [P [I 2, C "x"], P [I 4]]) (S [P [I 6]]) EqR))
       , testCase "Combined: 1 <= m and 2 * n = m implies 2 * n - 1 = m - 2 and 1 <= m" $
         Just True @=? runMultistep
+      , testCase "Multistep: m = n1 + 1 and m + n = n2 + 1 implies n1 + n = n2" $
+        Just True @=? runMultistep2
+      , testCase "1 + a = c and 1 + b = c implies a = b and 2 + 2 * a = 2 * c" $
+        Just True @=? runStep3
       ]
     , testGroup "False"
       [ testCase "x + 2 /= x + 3" $
@@ -282,6 +317,8 @@ tests = testGroup "lib-tests"
           Just True @=?
           evalStatements (assert
                           (SoPE (S [P [I 1]]) (S [P [E (S [P [I 2]]) (P [C "a"])]]) LeR))
+        , testCase "2 <= 2^(n + m) implies 2 <= 2^(m + n)" $
+          Just True @=? runImplication
         ]
       ]
     , testGroup "False"

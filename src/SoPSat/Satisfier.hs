@@ -89,7 +89,7 @@ declareEq u v =
         (False,Bound upB1,_) -> propagateInEqSoP v' LeR upB1
         (_,_,_) -> return True
     
-    declareEq' u v
+    declareEq' u' v'
     return (lowerUpdate && upperUpdate)
   where
     boundComp Inf _ = return False
