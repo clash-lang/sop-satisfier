@@ -79,7 +79,7 @@ data OrdRel
   deriving (Eq, Ord, Show)
 
 data SoPE c = SoPE { lhs :: SoP c, rhs :: SoP c, op :: OrdRel }
-  deriving Show
+  deriving (Eq, Show)
 
 
 mergeWith :: (a -> a -> Either a a) -> [a] -> [a]

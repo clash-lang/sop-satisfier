@@ -18,6 +18,7 @@ import SoPSat.Satisfier
   , evalStatements
   , declare
   , assert
+  , unify
   )
 
 
@@ -334,5 +335,23 @@ tests = testGroup "lib-tests"
     ]
   , testGroup "Ranges"
     [ -- TODO: Add test cases for range narrowing consistency
+    ]
+  , testGroup "Unifiers"
+    [ testCase "x = x always holds" $
+      Just Nothing @=?
+      evalStatements (unify (SoPE (S [P [C "x"]]) (S [P [C "x"]]) EqR))
+    , testCase "t = a + b does not produce unifiers" $
+      Just (Just []) @=?
+      evalStatements (unify (SoPE (S [P [C "t"]]) (S [P [C "a"], P [C "b"]]) EqR))
+    , testCase "a + b = a + c if b = c" $
+      Just (Just [SoPE (S [P [C "b"]]) (S [P [C "c"]]) EqR]) @=?
+      evalStatements (unify (SoPE (S [P [C "a"], P [C "b"]])
+                                  (S [P [C "a"], P [C "c"]])
+                                  EqR))
+    , testCase "a^b = a^c if b = c" $
+      Just (Just [SoPE (S [P [C "b"]]) (S [P [C "c"]]) EqR]) @=?
+      evalStatements (unify (SoPE (S [P [E (S [P [C "a"]]) (P [C "b"])]])
+                                  (S [P [E (S [P [C "a"]]) (P [C "c"])]])
+                                  EqR))
     ]
   ]

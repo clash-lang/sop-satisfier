@@ -6,6 +6,7 @@ module SoPSat.Satisfier
     -- * State manipulation
   , declare
   , assert
+  , unify
     -- * State execution
   , runStatements
   , evalStatements
@@ -356,3 +357,28 @@ assert SoPE{..} = do
       if r1 then return True
         else do
         assertRange rhs lhs <|> assertNewton rhs lhs
+
+-- | Get unifiers for an expression
+-- minimal set of expressions that should hold for the expression to hold
+unify :: Ord c
+      => SoPE c
+      -- ^ Unified expression
+      -> SolverState c (Maybe [SoPE c])
+      -- ^ Nothing -- if the expression already holds
+      -- Just [unifier] -- minimal list of unifiers for the expression to hold
+      --
+      -- State will always be valid after a call
+unify origin@SoPE{..} = do
+  declareSoP lhs
+  declareSoP rhs
+  us <- getUnifiers
+  let
+    lhs' = substsSoP us lhs
+    rhs' = substsSoP us rhs
+  case op of
+    EqR | lhs' == rhs' -> return Nothing
+        | otherwise -> return (Just $ filter (/= origin) $ map unifier2SoPE (unifiers lhs' rhs'))
+    _ -> return (Just [])
+  where
+    unifier2SoPE Unify{..} = SoPE sLHS sRHS EqR
+    unifier2SoPE Subst{..} = SoPE (toSoP (C sConst)) sSoP EqR
