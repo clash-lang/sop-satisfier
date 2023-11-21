@@ -15,7 +15,7 @@ where
 
 import Control.Applicative ((<|>))
 import Control.Arrow       (second)
-import Control.Monad       (when)
+import Control.Monad       (when, (>=>))
 
 import Data.Map (Map)
 import qualified Data.Map as M
@@ -53,6 +53,18 @@ declareProduct = mapM_ declareSymbol . unP
 declareSoP :: (Ord c) => SoP c -> SolverState c ()
 declareSoP = mapM_ declareProduct . unS
 
+-- | Declare expression to state, returns normalised expression
+--
+-- Common for @declare@, @assert@, and @unify@
+declareToState :: (Ord c) => SoPE c -> SolverState c (SoPE c)
+declareToState SoPE{..} = do
+  declareSoP lhs
+  declareSoP rhs
+  us <- getUnifiers
+  let
+    lhs' = substsSoP us lhs
+    rhs' = substsSoP us rhs
+  return (SoPE lhs' rhs' op)
 
 -- ^ Declare equality of two expressions
 declareEq :: (Ord c)
@@ -65,12 +77,8 @@ declareEq :: (Ord c)
           -- Adds new unifiers to the state
 declareEq u v =
   do
-    us <- getUnifiers
-    let
-      u' = substsSoP us u
-      v' = substsSoP us v
-    (Range low1 up1) <- getRangeSoP u'
-    (Range low2 up2) <- getRangeSoP v'
+    (Range low1 up1) <- getRangeSoP u
+    (Range low2 up2) <- getRangeSoP v
     lowRes <- boundComp low1 low2
     upRes <- boundComp up1 up2
 
@@ -80,17 +88,17 @@ declareEq u v =
     -- g(x) in [1,5] and forall x  g(x) = f(x) then f(x) in [1,5
     lowerUpdate <-
       case (lowRes,low1,low2) of
-        (True,_,Bound lowB2) -> propagateInEqSoP u' GeR lowB2
-        (False,Bound lowB1,_) -> propagateInEqSoP v' GeR lowB1
+        (True,_,Bound lowB2) -> propagateInEqSoP u GeR lowB2
+        (False,Bound lowB1,_) -> propagateInEqSoP v GeR lowB1
         (_,_,_) -> return True
 
     upperUpdate <-
       case (upRes,up1,up2) of
-        (True,_,Bound upB2) -> propagateInEqSoP u' LeR upB2
-        (False,Bound upB1,_) -> propagateInEqSoP v' LeR upB1
+        (True,_,Bound upB2) -> propagateInEqSoP u LeR upB2
+        (False,Bound upB1,_) -> propagateInEqSoP v LeR upB1
         (_,_,_) -> return True
     
-    declareEq' u' v'
+    declareEq' u v
     return (lowerUpdate && upperUpdate)
   where
     boundComp Inf _ = return False
@@ -196,28 +204,25 @@ declareInEq :: (Ord c)
             -- Updates interval information in the state
 declareInEq EqR u v = declareEq u v >> return True
 declareInEq op u v =
-  do
-    us <- getUnifiers
     let
-      u' = substsSoP us u
-      v' = substsSoP us v
-      (u'', v'') = splitSoP u' v'
+      (u', v') = splitSoP u v
     -- If inequality holds with current interval information
     -- then no need to update it
-    res <- assert (SoPE u'' v'' op)
-    if res then return True
-      else
-      case op of
-        LeR -> do
-          a1 <- propagateInEqSoP u'' LeR v''
-          a2 <- propagateInEqSoP v'' GeR u''
-          return (a1 && a2)
-        GeR -> do
-          a1 <- propagateInEqSoP u'' GeR v''
-          a2 <- propagateInEqSoP v'' LeR u''
-          return (a1 && a2)
 
 -- ^ Declare expression to the state
+    in do
+      res <- assert (SoPE u' v' op)
+      if res then return True
+        else
+        case op of
+          LeR -> do
+            a1 <- propagateInEqSoP u' LeR v'
+            a2 <- propagateInEqSoP v' GeR u'
+            return (a1 && a2)
+          GeR -> do
+            a1 <- propagateInEqSoP u' GeR v'
+            a2 <- propagateInEqSoP v' LeR u'
+            return (a1 && a2)
 declare :: Ord c
         => SoPE c
         -- | Expression to declare
@@ -226,9 +231,7 @@ declare :: Ord c
         -- False -- if expression contradicts current state
         --
         -- State will become @Nothing@ if it cannot reason about these kind of expressions
-declare SoPE{..} = do
-  declareSoP lhs
-  declareSoP rhs
+declare = declareToState >=> \SoPE{..} ->
   case op of
     EqR -> declareEq lhs rhs >> return True
     _   -> declareInEq op lhs rhs
@@ -241,12 +244,7 @@ assertEq :: Ord c
          -- | Right-hand size expression
          -> SolverState c Bool
          -- | Similar to assert but only checks for equality @lhs = rhs@
-assertEq lhs rhs = do
-  us <- getUnifiers
-  let
-    lhs' = substsSoP us lhs
-    rhs' = substsSoP us rhs
-  return ((lhs == rhs) || (lhs' == rhs'))
+assertEq lhs rhs = return (lhs == rhs)
 
 -- ^ Assert using only ranges stores in the state
 assertRange :: Ord c
@@ -256,15 +254,7 @@ assertRange :: Ord c
             -- | Right-hand size expression
             -> SolverState c Bool
             -- | Similar to @assert@ but uses only intervals from the state to check @lhs <= rhs@
-assertRange lhs rhs = do
-  us <- getUnifiers
-  let
-    (lhs',rhs') = splitSoP lhs rhs
-    lhs'' = substsSoP us lhs'
-    rhs'' = substsSoP us rhs'
-  r1 <- assertRange' lhs' rhs'
-  r2 <- assertRange' lhs'' rhs''
-  return (r1 || r2)
+assertRange lhs rhs = uncurry assertRange' $ splitSoP lhs rhs
 
 assertRange' :: Ord c => SoP c -> SoP c -> SolverState c Bool
 assertRange' lhs rhs = do
@@ -294,21 +284,7 @@ assertNewton :: Ord c
              -- | Right-hand side expression
              -> SolverState c Bool
              -- | Similar to @assert@ but uses only Newton's method to check @lhs <= rhs@
-assertNewton lhs rhs =
-  do
-    us <- getUnifiers
-    let
-      lhs'  = substsSoP us lhs
-      rhs'  = substsSoP us rhs
-      one   = toSoP (I 1)
-      -- Add one to expressions to find negative values and not zeros
-      expr1 = mergeSoPAdd (mergeSoPSub rhs lhs) one
-      expr2 = mergeSoPAdd (mergeSoPSub rhs' lhs') one
-
-    res1 <- checkExpr expr1
-    res2 <- checkExpr expr2
-
-    return (res1 || res2)
+assertNewton lhs rhs = checkExpr $ mergeSoPAdd (mergeSoPSub rhs lhs) (toSoP (I 1))
   where
     checkExpr :: (Ord c) => SoP c -> SolverState c Bool
     checkExpr expr
@@ -342,9 +318,7 @@ assert :: Ord c
        -- False -- otherwise
        --
        -- State will become @Nothing@ if it cannot reason about these kind of expressions
-assert SoPE{..} = do
-  declareSoP lhs
-  declareSoP rhs
+assert = declareToState >=> \SoPE{..} ->
   case op of
     EqR -> assertEq lhs rhs
     LeR -> do
@@ -368,17 +342,11 @@ unify :: Ord c
       -- Just [unifier] -- minimal list of unifiers for the expression to hold
       --
       -- State will always be valid after a call
-unify origin@SoPE{..} = do
-  declareSoP lhs
-  declareSoP rhs
-  us <- getUnifiers
-  let
-    lhs' = substsSoP us lhs
-    rhs' = substsSoP us rhs
-  case op of
-    EqR | lhs' == rhs' -> return Nothing
-        | otherwise -> return (Just $ filter (/= origin) $ map unifier2SoPE (unifiers lhs' rhs'))
-    _ -> return (Just [])
+unify = declareToState >=> \expr@SoPE{..} ->
+    case op of
+      EqR | lhs == rhs -> return Nothing
+          | otherwise -> return (Just $ filter (/= expr) $ map unifier2SoPE (unifiers lhs rhs))
+      _ -> return (Just [])
   where
     unifier2SoPE Unify{..} = SoPE sLHS sRHS EqR
     unifier2SoPE Subst{..} = SoPE (toSoP (C sConst)) sSoP EqR

@@ -348,6 +348,17 @@ tests = testGroup "lib-tests"
       evalStatements (unify (SoPE (S [P [C "a"], P [C "b"]])
                                   (S [P [C "a"], P [C "c"]])
                                   EqR))
+    , testCase "n = n + d" $
+      Just (Just []) @=?
+      evalStatements (unify (SoPE (S [P [C "n"]])
+                                  (S [P [C "n"], P [C "d"]])
+                                  EqR))
+    , testCase "c = n implies n = n + d" $
+      Just (Just []) @=?
+      evalStatements (declare (SoPE (S [P [C "c"]]) (S [P [C "n"]]) EqR) >>
+                      unify (SoPE (S [P [C "n"]])
+                                  (S [P [C "n"], P [C "d"]])
+                                  EqR))
     , testCase "a^b = a^c if b = c" $
       Just (Just [SoPE (S [P [C "b"]]) (S [P [C "c"]]) EqR]) @=?
       evalStatements (unify (SoPE (S [P [E (S [P [C "a"]]) (P [C "b"])]])
