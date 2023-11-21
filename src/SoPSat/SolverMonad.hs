@@ -17,7 +17,7 @@ module SoPSat.SolverMonad
   )
 where
 
-import Control.Monad.State
+import Control.Monad.Trans.State.Strict
   ( StateT(..)
   , evalStateT
   , get
