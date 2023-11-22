@@ -1,5 +1,6 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE RecordWildCards #-}
 
 module SoPSat.SoP
   ( -- * SoP Types
@@ -27,7 +28,7 @@ where
 
 -- External
 import Data.Either (partitionEithers)
-import Data.List (sort)
+import Data.List (sort, intercalate)
 
 import Data.Set (Set, union)
 import qualified Data.Set as S
@@ -41,14 +42,19 @@ data Symbol c
   = I Integer
   | C c
   | E (SoP c) (Product c)
-  deriving (Eq, Ord, Show)
+  deriving (Eq, Ord)
 
 instance (Ord c) => ToSoP Symbol c where
   toSoP s = simplifySoP $ S [P [s]]
 
+instance Show c => Show (Symbol c) where
+  show (E s p) = show s ++ "^" ++ show p
+  show (I i) = show i
+  show (C c) = show c
+
 
 newtype Product c = P { unP :: [Symbol c] }
-  deriving (Eq, Show)
+  deriving Eq
 
 instance Ord c => Ord (Product c) where
   compare (P [x])   (P [y])   = compare x y
@@ -59,9 +65,13 @@ instance Ord c => Ord (Product c) where
 instance (Ord c) => ToSoP Product c where
   toSoP p = simplifySoP $ S [p]
 
+instance Show c => Show (Product c) where
+  show (P [s]) = show s
+  show (P ss) = "(" ++ intercalate " * " (map show ss) ++ ")"
+
 
 newtype SoP c = S { unS :: [Product c] }
-  deriving (Ord, Show)
+  deriving Ord
 
 instance Eq c => Eq (SoP c) where
   (S []) == (S [P [I 0]]) = True
@@ -70,16 +80,39 @@ instance Eq c => Eq (SoP c) where
 
 instance (Ord c) => ToSoP SoP c where
   toSoP = simplifySoP
-  
+
+instance Show c => Show (SoP c) where
+  show (S [p]) = show p
+  show (S ps) = "(" ++ intercalate " + " (map show ps) ++ ")"
+
 
 data OrdRel
   = LeR
   | EqR
   | GeR
-  deriving (Eq, Ord, Show)
+  deriving (Eq, Ord)
+
+instance Show OrdRel where
+  show LeR = "<="
+  show EqR = "="
+  show GeR = ">="
 
 data SoPE c = SoPE { lhs :: SoP c, rhs :: SoP c, op :: OrdRel }
-  deriving (Eq, Show)
+
+instance Eq c => Eq (SoPE c) where
+  (SoPE l1 r1 op1) == (SoPE l2 r2 op2)
+    | op1 == op2
+    , op1 == EqR
+    = (l1 == l2) && (r1 == r2) || (l1 == r2) && (r1 == l2)
+    | op1 == op2
+    = (l1 == l2) && (r1 == r2)
+    | EqR `notElem` [op1,op2]
+    = (l1 == r2) && (r1 == l2)
+    | otherwise
+    = False
+
+instance Show c => Show (SoPE c) where
+  show SoPE{..} = unwords [show lhs, show op, show rhs]
 
 
 mergeWith :: (a -> a -> Either a a) -> [a] -> [a]

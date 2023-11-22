@@ -356,8 +356,8 @@ tests = testGroup "lib-tests"
     , testCase "c = n implies n = n + d never holds" $
       Just (Just []) @=?
       evalStatements (declare (SoPE (S [P [C "c"]]) (S [P [C "n"]]) EqR) >>
-                      unify (SoPE (S [P [C "n"]])
-                                  (S [P [C "n"], P [C "d"]])
+                      unify (SoPE (S [P [C "n"], P [C "d"]])
+                                  (S [P [C "n"]])
                                   EqR))
     , testCase "a^b = a^c if b = c" $
       Just (Just [SoPE (S [P [C "b"]]) (S [P [C "c"]]) EqR]) @=?
