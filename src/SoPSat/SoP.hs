@@ -16,6 +16,7 @@ module SoPSat.SoP
   , (|*|)
   , (|/|)
   , (|^|)
+  , gcd
     -- * Relations
   , OrdRel(..)
     -- * Related
@@ -32,11 +33,13 @@ module SoPSat.SoP
 where
 
 -- External
+import Prelude hiding (gcd)
 import Data.Either (partitionEithers)
-import Data.List (sort, intercalate)
+import Data.List (sort, intercalate, intersect, (\\))
 
 import Data.Set (Set, union)
 import qualified Data.Set as S
+import Data.Function (on)
 
 
 class ToSoP f c a where
@@ -270,6 +273,12 @@ simplifySoP = repeatF go
              else repeatF f x'
 {-# INLINEABLE simplifySoP #-}
 
+gcd :: (Ord f, Ord c) => SoP f c -> SoP f c -> Maybe (SoP f c)
+gcd (S ps1) (S ps2) =
+  case (intersect `on` (foldr1 intersect . map unP)) ps1 ps2 of
+    []    -> Nothing
+    symbs -> Just (simplifySoP $ S [P symbs])
+
 int :: Integer -> SoP f c
 int i = S [P [I i]]
 
@@ -309,11 +318,15 @@ infixl 6 |-|
 (|-|) :: (Ord f, Ord c) => SoP f c -> SoP f c -> SoP f c
 (|-|) = mergeSoPSub
 
-mergeSoPDiv :: (Ord f, Ord c) => SoP f c -> SoP f c -> (SoP f c, SoP f c)
-mergeSoPDiv (S _ps1) (S _ps2) = undefined
+mergeSoPDiv :: (Ord f, Ord c) => SoP f c -> SoP f c -> Maybe (SoP f c)
+mergeSoPDiv (S ps) (S [P ss]) = Just $ simplifySoP $ S (map (nonEmpty . P . (\\ ss) . unP) ps)
+  where
+    nonEmpty (P []) = P [I 1]
+    nonEmpty p = p
+mergeSoPDiv _ _ = Nothing
 
 infixl 7 |/|
-(|/|) :: (Ord f, Ord c) => SoP f c -> SoP f c -> (SoP f c, SoP f c)
+(|/|) :: (Ord f, Ord c) => SoP f c -> SoP f c -> Maybe (SoP f c)
 (|/|) = mergeSoPDiv
 
 atoms :: (Ord f, Ord c) => SoP f c -> Set (Atom f c)
