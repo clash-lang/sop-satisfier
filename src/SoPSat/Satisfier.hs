@@ -286,12 +286,10 @@ assertNewton :: (Ord f, Ord c)
 assertNewton lhs rhs =
   let
     expr = rhs |-| lhs |+| int 1
-  in if hasFunction expr
-       then fail ""
-       else checkExpr expr
+  in checkExpr expr
   where
-    hasFunction :: (Ord f, Ord c) => SoP f c -> Bool
-    hasFunction = any isFunction . atoms
+    -- hasFunction :: (Ord f, Ord c) => SoP f c -> Bool
+    -- hasFunction = any isFunction . atoms
 
     checkExpr :: (Ord f, Ord c) => SoP f c -> SolverState f c Bool
     checkExpr expr

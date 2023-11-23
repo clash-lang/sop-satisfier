@@ -316,6 +316,19 @@ func3 =
 runFunc3 :: SolveTestResult
 runFunc3 = evalStatements func3
 
+func4 :: SolveTestCase
+func4 =
+  let
+    x = SoP.cons "x"
+    g = SoP.func "g" [x]
+    f = SoP.func "f" [x]
+  in do
+    declare (SoPE (SoP.int 1) g LeR)
+    assert (SoPE f (f |*| g) LeR)
+
+runFunc4 :: SolveTestResult
+runFunc4 = evalStatements func4
+
 main :: IO ()
 main = defaultMain tests
 
@@ -390,6 +403,10 @@ tests = testGroup "lib-tests"
         Just True @=? runTrueInEq
       , testCase "Overlapping ranges: 4 <= x implies 2 <= x" $
         Just True @=? runOverlapInEq
+      , testGroup "Functions"
+        [ testCase "g(x) >= 1 implies f(x) <= g(x) * f(x)" $
+          Just True @=? runFunc4
+        ]
       , testGroup "Trivial"
         [ testCase "a <= a + 1" $
           Just True @=?
