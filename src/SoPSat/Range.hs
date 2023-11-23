@@ -11,47 +11,47 @@ where
 import SoPSat.SoP
 
 
-data Bound c
-  = Bound (SoP c)
+data Bound f c
+  = Bound (SoP f c)
   | Inf
   deriving (Eq, Show)
 
-boundSoP :: Bound c -> Maybe (SoP c)
+boundSoP :: Bound f c -> Maybe (SoP f c)
 boundSoP (Bound s) = Just s
 boundSoP Inf = Nothing
 
-data Range c
+data Range f c
   = Range
-    { lower :: Bound c
-    , upper :: Bound c
+    { lower :: Bound f c
+    , upper :: Bound f c
     }
   deriving (Eq, Show)
 
 
-boundAdd :: (Ord c) => Bound c -> Bound c -> Bound c
+boundAdd :: (Ord f, Ord c) => Bound f c -> Bound f c -> Bound f c
 boundAdd Inf _   = Inf
 boundAdd _   Inf = Inf
-boundAdd (Bound a) (Bound b) = Bound (mergeSoPAdd a b)
+boundAdd (Bound a) (Bound b) = Bound (a |+| b)
 
-boundMul :: (Ord c) => Bound c -> Bound c -> Bound c
+boundMul :: (Ord f, Ord c) => Bound f c -> Bound f c -> Bound f c
 boundMul Inf _   = Inf
 boundMul _   Inf = Inf
-boundMul (Bound a) (Bound b) = Bound (mergeSoPMul a b)
+boundMul (Bound a) (Bound b) = Bound (a |*| b)
 
-boundExp :: (Ord c) => Bound c -> Bound c -> Bound c
+boundExp :: (Ord f, Ord c) => Bound f c -> Bound f c -> Bound f c
 boundExp Inf _   = Inf
 boundExp _   Inf = Inf
-boundExp (Bound a) (Bound b) = Bound (normaliseExp a b)
+boundExp (Bound a) (Bound b) = Bound (a |^| b)
 
 
-rangeAdd :: (Ord c) => Range c -> Range c -> Maybe (Range c)
+rangeAdd :: (Ord f, Ord c) => Range f c -> Range f c -> Maybe (Range f c)
 -- Subtraction of unbounded functions
 rangeAdd (Range _   Inf) (Range Inf _  ) = Nothing
 rangeAdd (Range Inf _  ) (Range _   Inf) = Nothing
 rangeAdd (Range low1 up1) (Range low2 up2) = Just $
   Range (boundAdd low1 low2) (boundAdd up1 up2)
 
-rangeMul :: (Ord c) => Range c -> Range c -> Maybe (Range c)
+rangeMul :: (Ord f, Ord c) => Range f c -> Range f c -> Maybe (Range f c)
 -- Multiplication of unbounded functions
 rangeMul (Range Inf Inf) _               = Nothing
 rangeMul _               (Range Inf Inf) = Nothing
@@ -85,10 +85,10 @@ rangeMul (Range low1 up1) (Range low2 up2) = Just $
 --          Range (boundMul 
 -- rangeMul _ _ = Nothing
 
-rangeExp :: (Ord c) => Range c -> Range c -> Maybe (Range c)
+rangeExp :: (Ord f, Ord c) => Range f c -> Range f c -> Maybe (Range f c)
 rangeExp (Range Inf _) (Range Inf _) = Nothing
 rangeExp (Range _ up1) (Range Inf up2) = Just $
-  Range (Bound (toSoP (I 0))) (boundExp up1 up2)
+  Range (Bound (S [P [I 0]])) (boundExp up1 up2)
 rangeExp (Range low1 up1) (Range low2 up2) = Just $
   Range (boundExp low1 low2) (boundExp up1 up2)
 

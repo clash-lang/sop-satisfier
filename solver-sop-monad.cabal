@@ -1,6 +1,6 @@
 cabal-version:      3.0
 name:               solver-sop-monad
-version:            0.1.1.2
+version:            0.2.1.1
 -- synopsis:
 -- description:
 license:            GPL-3.0-or-later

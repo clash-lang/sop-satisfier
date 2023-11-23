@@ -12,51 +12,53 @@ import SoPSat.SoP
   ( SoP(..)
   , Product(..)
   , Symbol(..)
-  , constants)
+  , Atom(..)
+  , atoms)
 
-evalSoP :: (Ord c, Floating n) => SoP c -> Map c n -> n
+evalSoP :: (Ord f, Ord c, Floating n) => SoP f c -> Map (Atom f c) n -> n
 evalSoP (S []) _ = 0
 evalSoP (S ps) binds = sum $ map (`evalProduct` binds) ps
 
-evalProduct :: (Ord c, Floating n) => Product c -> Map c n -> n
+evalProduct :: (Ord f, Ord c, Floating n) => Product f c -> Map (Atom f c) n -> n
 evalProduct (P ss) binds = product $ map (`evalSymbol` binds) ss
 
-evalSymbol :: (Ord c, Floating n) => Symbol c -> Map c n -> n
+evalSymbol :: (Ord f, Ord c, Floating n) => Symbol f c -> Map (Atom f c) n -> n
 evalSymbol (I i) _     = fromInteger i
-evalSymbol (C c) binds = f $ M.lookup c binds
+evalSymbol (A a) binds = f $ M.lookup a binds
   where f (Just n) = n
         f Nothing  = 0
 evalSymbol (E b p) binds = exp (evalProduct p binds * log (evalSoP b binds))
 
-derivative :: (Ord c, Floating n) => SoP c -> c -> (Map c n -> n)
+derivative :: (Ord f, Ord c, Floating n) => SoP f c -> Atom f c -> (Map (Atom f c) n -> n)
 derivative sop symb = \binds -> sum $ d <*> [binds]
   where d = map (`derivativeProduct` symb) $ unS sop
 
-derivativeProduct :: (Ord c, Floating n) => Product c -> c -> (Map c n -> n)
+derivativeProduct :: (Ord f, Ord c, Floating n) => Product f c -> Atom f c -> (Map (Atom f c) n -> n)
 derivativeProduct (P [])     _ = const 0
 derivativeProduct (P (s:ss)) symb = \binds -> derivativeSymbol s symb binds * evalProduct ps binds + evalSymbol s binds * derivativeProduct ps symb binds
   where ps = P ss
 
-derivativeSymbol :: (Ord c, Floating n) => Symbol c -> c -> (Map c n -> n)
+derivativeSymbol :: (Ord f, Ord c, Floating n) => Symbol f c -> Atom f c -> (Map (Atom f c) n -> n)
 derivativeSymbol (I _) _ = const 0
-derivativeSymbol (C c) symb
-  | c == symb = const 1
+derivativeSymbol (A a) atom
+  | a == atom = const 1
   | otherwise = const 0
-derivativeSymbol e@(E b p) symb = \binds ->
+derivativeSymbol e@(E b p) atom = \binds ->
     expExpr binds *
-    (derivative b symb binds * evalProduct p binds
+    (derivative b atom binds * evalProduct p binds
       / evalSoP b binds
       + logExpr binds
-      * derivativeProduct p symb binds)
+      * derivativeProduct p atom binds)
   where expExpr = evalSymbol e
         logExpr = log. evalSoP b
 
-newtonMethod :: (Ord c, Ord n, Floating n) => SoP c -> Either (Map c n) (Map c n)
-newtonMethod sop = go init_guess 100
+newtonMethod :: (Ord f, Ord c, Ord n, Floating n) => SoP f c -> Either (Map (Atom f c) n) (Map (Atom f c) n)
+newtonMethod sop = go init_guess steps
   where
-    consts     = constants sop
+    consts     = atoms sop
     derivs     = M.fromSet (derivative sop) consts
     init_guess = M.fromSet (const 10) consts
+    steps = 40
 
     go guess 0 = Left guess
     go guess n

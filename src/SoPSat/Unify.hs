@@ -8,56 +8,53 @@ import Data.Function (on)
 
 import GHC.Num.Integer (integerSqr)
 
-import SoPSat.SoP (SoP (..), Product (..), Symbol (..),
-            toSoP, normaliseExp, mergeSoPAdd, mergeSoPMul)
+import SoPSat.SoP
+  (SoP (..), Product (..), Symbol (..), Atom (..),
+    toSoP, (|+|), (|-|), (|*|), (|^|))
+import qualified SoPSat.SoP as SoP
 
 
-data Unifier c
-  = Subst { sConst :: c
-          , sSoP   :: SoP c
+data Unifier f c
+  = Subst { sConst :: Atom f c
+          , sSoP   :: SoP f c
           }
-  | Unify { sLHS   :: SoP c
-          , sRHS   :: SoP c
+  | Unify { sLHS   :: SoP f c
+          , sRHS   :: SoP f c
           }
   deriving (Eq, Show)
 
-substsSoP :: (Ord c) => [Unifier c] -> SoP c -> SoP c
+substsSoP :: (Ord f, Ord c) => [Unifier f c] -> SoP f c -> SoP f c
 substsSoP [] u = u
 substsSoP ((Subst{..}):s) u = substsSoP s (substSoP sConst sSoP u)
 substsSoP ((Unify{}):s)   u = substsSoP s u
 
-substSoP :: (Ord c) => c -> SoP c -> SoP c -> SoP c
-substSoP cons subs = foldr1 mergeSoPAdd . map (substProduct cons subs) . unS
+substSoP :: (Ord f, Ord c) => Atom f c -> SoP f c -> SoP f c -> SoP f c
+substSoP cons subs = foldr1 (|+|) . map (substProduct cons subs) . unS
 
-substProduct :: (Ord c) => c -> SoP c -> Product c -> SoP c
-substProduct cons subs = foldr1 mergeSoPMul . map (substSymbol cons subs) . unP
+substProduct :: (Ord f, Ord c) => Atom f c -> SoP f c -> Product f c -> SoP f c
+substProduct cons subs = foldr1 (|*|) . map (substSymbol cons subs) . unP
 
-substSymbol :: (Ord c) => c -> SoP c -> Symbol c -> SoP c
+substSymbol :: (Ord f, Ord c) => Atom f c -> SoP f c -> Symbol f c -> SoP f c
 substSymbol _ _ s@(I _) = toSoP s
-substSymbol cons subst s@(C c)
-  | cons == c = subst
-  | otherwise = toSoP s
+substSymbol cons subst s@(A a)
+  | cons == a = subst
+  | otherwise = S [P [s]]
 
-substSymbol cons subst (E b p) = normaliseExp (substSoP cons subst b) (substProduct cons subst p)
+substSymbol cons subst (E b p) = substSoP cons subst b |^| substProduct cons subst p
 
-substsSubst :: (Ord c) => [Unifier c] -> [Unifier c] -> [Unifier c]
+substsSubst :: (Ord f, Ord f, Ord c) => [Unifier f c] -> [Unifier f c] -> [Unifier f c]
 substsSubst s = map subst
   where
     subst sub@(Subst {..}) = sub { sSoP = substsSoP s sSoP }
     subst uni@(Unify {..}) = uni { sLHS = substsSoP s sLHS,
                                    sRHS = substsSoP s sRHS }
 
-data UnifyResult c
-  = Win
-  | Lose
-  | Draw [Unifier c]
+unifiers :: (Ord f, Ord f, Ord c) => SoP f c -> SoP f c -> [Unifier f c]
+unifiers (S [P [A a]]) (S []) = [Subst a (S [P [I 0]])]
+unifiers (S []) (S [P [A a]]) = [Subst a (S [P [I 0]])]
 
-unifiers :: (Ord c) => SoP c -> SoP c -> [Unifier c]
-unifiers (S [P [C x]]) (S []) = [Subst x (S [P [I 0]])]
-unifiers (S []) (S [P [C x]]) = [Subst x (S [P [I 0]])]
-
-unifiers (S [P [C x]]) s = [Subst x s]
-unifiers s (S [P [C x]]) = [Subst x s]
+unifiers (S [P [A a]]) s = [Subst a s]
+unifiers s (S [P [A a]]) = [Subst a s]
 
 -- (z ^ a) ~ (z ^ b) ==> [a := b]
 unifiers (S [P [E s1 p1]]) (S [P [E s2 p2]])
@@ -164,27 +161,27 @@ unifiers s1@(S ps1) s2@(S ps2) = case splitSoP s1 s2 of
           | otherwise = ps2'
     psx = ps1 `intersect` ps2
 
-unifiers' :: (Ord c) => SoP c -> SoP c -> [Unifier c]
-unifiers' (S [P [I i],P [C v]]) s2
-  = [Subst v (mergeSoPAdd s2 (toSoP (I (negate i))))]
-unifiers' s1 (S [P [I i],P [C v]])
-  = [Subst v (mergeSoPAdd s1 (toSoP (I (negate i))))]
+unifiers' :: (Ord f, Ord c) => SoP f c -> SoP f c -> [Unifier f c]
+unifiers' (S [P [I i],P [A a]]) s2
+  = [Subst a (s2 |+| S [P [I (negate i)]])]
+unifiers' s1 (S [P [I i],P [A a]])
+  = [Subst a (s1 |+| S [P [I (negate i)]])]
 unifiers' _ _ = []
 
-splitSoP :: (Ord c) => SoP c -> SoP c -> (SoP c, SoP c)
+splitSoP :: (Ord f, Ord c) => SoP f c -> SoP f c -> (SoP f c, SoP f c)
 splitSoP u v = (lhs, rhs)
   where
-    reduced = mergeSoPAdd v (mergeSoPMul u (toSoP (I (-1))))
+    reduced = v |-| u
     (lhs',rhs') = partition neg (unS reduced)
-    lhs | null lhs' = S [P [I 0]]
-        | otherwise = (mergeSoPMul `on` S) lhs' [P [I (-1)]]
-    rhs | null rhs' = S [P [I 0]]
+    lhs | null lhs' = SoP.int 0
+        | otherwise = ((|*|) `on` S) lhs' [P [I (-1)]]
+    rhs | null rhs' = SoP.int 0
         | otherwise = S rhs'
 
     neg (P ((I i):_)) = i < 0
     neg _ = False
     
-collectBases :: Product c -> Maybe ([SoP c],[Product c])
+collectBases :: Product f c -> Maybe ([SoP f c],[Product f c])
 collectBases = fmap unzip . traverse go . unP
   where
     go (E s1 p1) = Just (s1,p1)

@@ -5,24 +5,29 @@
 module SoPSat.SoP
   ( -- * SoP Types
     Symbol (..)
+  , Atom (..)
   , Product (..)
   , SoP (..)
   , SoPE (..)
   , ToSoP (..)
-    -- * Simplification
-  , reduceExp
-  , mergeS
-  , mergeP
-  , mergeSoPAdd
-  , mergeSoPMul
-  , mergeSoPSub
-  , mergeSoPDiv
-  , normaliseExp
-  , simplifySoP
-  -- * Relations
+    -- * Operators
+  , (|+|)
+  , (|-|)
+  , (|*|)
+  , (|/|)
+  , (|^|)
+    -- * Relations
   , OrdRel(..)
-  -- * Related
+    -- * Related
   , constants
+  , atoms
+  , int
+  , cons
+  , symbol
+  , func
+    -- * Predicates
+  , isConst
+  , isFunction
   )
 where
 
@@ -34,54 +39,71 @@ import Data.Set (Set, union)
 import qualified Data.Set as S
 
 
-class ToSoP a c where
-  toSoP :: a c -> SoP c
+class ToSoP f c a where
+  toSoP :: a -> SoP f c
 
 
-data Symbol c
-  = I Integer
-  | C c
-  | E (SoP c) (Product c)
+data Atom f c
+  = C c
+  | F f [SoP f c]
   deriving (Eq, Ord)
 
-instance (Ord c) => ToSoP Symbol c where
+isConst :: Atom f c -> Bool
+isConst (C _) = True
+isConst _ = False
+
+isFunction :: Atom f c -> Bool
+isFunction (F _ _) = True
+isFunction _ = False
+
+instance (Show f, Show c) => Show (Atom f c) where
+  show (C c) = show c
+  show (F f args) = show f ++ "(" ++ intercalate ", " (map show args) ++ ")"
+
+data Symbol f c
+  = I Integer
+  | A (Atom f c)
+  | E (SoP f c) (Product f c)
+  deriving (Eq, Ord)
+
+instance (Ord f, Ord c) => ToSoP f c (Symbol f c) where
   toSoP s = simplifySoP $ S [P [s]]
 
-instance Show c => Show (Symbol c) where
+instance (Show f, Show c) => Show (Symbol f c) where
   show (E s p) = show s ++ "^" ++ show p
   show (I i) = show i
-  show (C c) = show c
+  show (A a) = show a
 
 
-newtype Product c = P { unP :: [Symbol c] }
+newtype Product f c = P { unP :: [Symbol f c] }
   deriving Eq
 
-instance Ord c => Ord (Product c) where
+instance (Ord f, Ord c) => Ord (Product f c) where
   compare (P [x])   (P [y])   = compare x y
   compare (P [_])   (P (_:_)) = LT
   compare (P (_:_)) (P [_])   = GT
   compare (P xs)    (P ys)    = compare xs ys
 
-instance (Ord c) => ToSoP Product c where
+instance (Ord f, Ord c) => ToSoP f c (Product f c) where
   toSoP p = simplifySoP $ S [p]
 
-instance Show c => Show (Product c) where
+instance (Show f, Show c) => Show (Product f c) where
   show (P [s]) = show s
   show (P ss) = "(" ++ intercalate " * " (map show ss) ++ ")"
 
 
-newtype SoP c = S { unS :: [Product c] }
+newtype SoP f c = S { unS :: [Product f c] }
   deriving Ord
 
-instance Eq c => Eq (SoP c) where
+instance (Eq f, Eq c) => Eq (SoP f c) where
   (S []) == (S [P [I 0]]) = True
   (S [P [I 0]]) == (S []) = True
   (S ps1) == (S ps2)      = ps1 == ps2
 
-instance (Ord c) => ToSoP SoP c where
+instance (Ord f, Ord c) => ToSoP f c (SoP f c) where
   toSoP = simplifySoP
 
-instance Show c => Show (SoP c) where
+instance (Show f, Show c) => Show (SoP f c) where
   show (S [p]) = show p
   show (S ps) = "(" ++ intercalate " + " (map show ps) ++ ")"
 
@@ -97,9 +119,9 @@ instance Show OrdRel where
   show EqR = "="
   show GeR = ">="
 
-data SoPE c = SoPE { lhs :: SoP c, rhs :: SoP c, op :: OrdRel }
+data SoPE f c = SoPE { lhs :: SoP f c, rhs :: SoP f c, op :: OrdRel }
 
-instance Eq c => Eq (SoPE c) where
+instance (Eq f, Eq c) => Eq (SoPE f c) where
   (SoPE l1 r1 op1) == (SoPE l2 r2 op2)
     | op1 == op2
     , op1 == EqR
@@ -111,7 +133,7 @@ instance Eq c => Eq (SoPE c) where
     | otherwise
     = False
 
-instance Show c => Show (SoPE c) where
+instance (Show f, Show c) => Show (SoPE f c) where
   show SoPE{..} = unwords [show lhs, show op, show rhs]
 
 
@@ -121,7 +143,7 @@ mergeWith op (f:fs) = case partitionEithers $ map (`op` f) fs of
                         ([],_) -> f : mergeWith op fs
                         (updated,untouched) -> mergeWith op (updated ++ untouched)
 
-reduceExp :: (Ord c) => Symbol c -> Symbol c
+reduceExp :: (Ord f, Ord c) => Symbol f c -> Symbol f c
 reduceExp (E _             (P [I 0])) = I 1
 reduceExp (E (S [P [I 0]]) _        ) = I 0
 reduceExp (E (S [P [I i]]) (P [I j]))
@@ -135,8 +157,8 @@ reduceExp (E (S [P [E k i]]) j) =
 
 reduceExp s = s
 
-mergeS :: (Ord c) => Symbol c -> Symbol c
-       -> Either (Symbol c) (Symbol c)
+mergeS :: (Ord f, Ord c) => Symbol f c -> Symbol f c
+       -> Either (Symbol f c) (Symbol f c)
 mergeS (I i) (I j) = Left (I (i * j))
 mergeS (I 1) r     = Left r
 mergeS l     (I 1) = Left l
@@ -181,8 +203,8 @@ mergeS (E s1 (P (I i:p1))) (E s2 (P p2))
 
 mergeS l _ = Right l
 
-mergeP :: (Eq c) => Product c -> Product c
-       -> Either (Product c) (Product c)
+mergeP :: (Eq f, Eq c) => Product f c -> Product f c
+       -> Either (Product f c) (Product f c)
 -- 2xy + 3xy ==> 5xy
 mergeP (P ((I i):is)) (P ((I j):js))
   | is == js = Left . P $ I (i + j) : is
@@ -197,12 +219,12 @@ mergeP (P is) (P js)
   | is == js  = Left . P $ I 2 : is
   | otherwise = Right $ P is
 
-normaliseExp :: (Ord c) => SoP c -> SoP c -> SoP c
+normaliseExp :: (Ord f, Ord c) => SoP f c -> SoP f c -> SoP f c
 -- b^1 ==> b
 normaliseExp b (S [P [I 1]]) = b
 
 -- x^(2xy) ==> x^(2xy)
-normaliseExp b@(S [P [C _]]) (S [e]) = S [P [E b e]]
+normaliseExp b@(S [P [A _]]) (S [e]) = S [P [E b e]]
 
 -- 2^(y^2) ==> 4^y
 normaliseExp b@(S [P [_]]) (S [e@(P [_])]) = S [P [reduceExp (E b e)]]
@@ -223,15 +245,15 @@ normaliseExp b (S [e]) = S [P [reduceExp (E b e)]]
 -- (x + 2)^(y + 2) ==> 4x(2 + x)^y + 4(2 + x)^y + (2 + x)^yx^2
 normaliseExp b (S e) = foldr1 mergeSoPMul (map (normaliseExp b . S . (:[])) e)
 
-zeroP :: Product c -> Bool
+zeroP :: Product f c -> Bool
 zeroP (P ((I 0):_)) = True
 zeroP _ = False
 
-mkNonEmpty :: (Ord c) => SoP c -> SoP c
+mkNonEmpty :: (Ord f, Ord c) => SoP f c -> SoP f c
 mkNonEmpty (S []) = S [P [I 0]]
 mkNonEmpty s      = s
 
-simplifySoP :: (Ord c) => SoP c -> SoP c
+simplifySoP :: (Ord f, Ord c) => SoP f c -> SoP f c
 simplifySoP = repeatF go
   where
     go = mkNonEmpty
@@ -248,26 +270,74 @@ simplifySoP = repeatF go
              else repeatF f x'
 {-# INLINEABLE simplifySoP #-}
 
-mergeSoPAdd :: (Ord c) => SoP c -> SoP c -> SoP c
+int :: Integer -> SoP f c
+int i = S [P [I i]]
+
+symbol :: Atom f c -> SoP f c
+symbol a = S [P [A a]]
+
+cons :: c -> SoP f c
+cons c = S [P [A (C c)]]
+
+func :: (Ord f, Ord c) => f -> [SoP f c] -> SoP f c
+func f args = S [P [A (F f (map simplifySoP args))]]
+
+infixr 8 |^|
+(|^|) :: (Ord f, Ord c) => SoP f c -> SoP f c -> SoP f c
+-- It's a B2 combinator,
+(|^|) = (. simplifySoP) . normaliseExp
+
+mergeSoPAdd :: (Ord f, Ord c) => SoP f c -> SoP f c -> SoP f c
 mergeSoPAdd (S ps1) (S ps2) = simplifySoP $ S (ps1 ++ ps2)
 
-mergeSoPMul :: (Ord c) => SoP c -> SoP c -> SoP c
+infixl 6 |+|
+(|+|) :: (Ord f, Ord c) => SoP f c -> SoP f c -> SoP f c
+(|+|) = mergeSoPAdd
+
+mergeSoPMul :: (Ord f, Ord c) => SoP f c -> SoP f c -> SoP f c
 mergeSoPMul (S ps1) (S ps2) = simplifySoP . S
   $ concatMap (zipWith (\p1 p2 -> P (unP p1 ++ unP p2)) ps1 . repeat) ps2
 
-mergeSoPSub :: (Ord c) => SoP c -> SoP c -> SoP c
-mergeSoPSub a b = mergeSoPAdd a (mergeSoPMul (toSoP (I (-1))) b)
+infixl 7 |*|
+(|*|) :: (Ord f, Ord c) => SoP f c -> SoP f c -> SoP f c
+(|*|) = mergeSoPMul
 
-mergeSoPDiv :: (Ord c) => SoP c -> SoP c -> (SoP c, SoP c)
+mergeSoPSub :: (Ord f, Ord c) => SoP f c -> SoP f c -> SoP f c
+mergeSoPSub a b = mergeSoPAdd a (mergeSoPMul (S [P [I (-1)]]) b)
+
+infixl 6 |-|
+(|-|) :: (Ord f, Ord c) => SoP f c -> SoP f c -> SoP f c
+(|-|) = mergeSoPSub
+
+mergeSoPDiv :: (Ord f, Ord c) => SoP f c -> SoP f c -> (SoP f c, SoP f c)
 mergeSoPDiv (S _ps1) (S _ps2) = undefined
 
-constants :: (Ord c) => SoP c -> Set c
+infixl 7 |/|
+(|/|) :: (Ord f, Ord c) => SoP f c -> SoP f c -> (SoP f c, SoP f c)
+(|/|) = mergeSoPDiv
+
+atoms :: (Ord f, Ord c) => SoP f c -> Set (Atom f c)
+atoms = S.unions . map atomsProduct . unS
+
+atomsProduct :: (Ord f, Ord c) => Product f c -> Set (Atom f c)
+atomsProduct = S.unions . map atomsSymbol . unP
+
+atomsSymbol :: (Ord f, Ord c) => Symbol f c -> Set (Atom f c)
+atomsSymbol (I _) = S.empty
+atomsSymbol (A a) = S.singleton a
+atomsSymbol (E b p) = atoms b `union` atomsProduct p
+
+constants :: (Ord f, Ord c) => SoP f c -> Set c
 constants = S.unions . map constsProduct . unS
 
-constsProduct :: (Ord c) => Product c -> Set c
-constsProduct = S.unions . map constSymbol . unP
+constsProduct :: (Ord f, Ord c) => Product f c -> Set c
+constsProduct = S.unions . map constsSymbol . unP
 
-constSymbol :: (Ord c) => Symbol c -> Set c
-constSymbol (I _) = S.empty
-constSymbol (C c) = S.singleton c
-constSymbol (E b p) = constants b `union` constsProduct p
+constsSymbol :: (Ord f, Ord c) => Symbol f c -> Set c
+constsSymbol (I _) = S.empty
+constsSymbol (A a) = constsAtom a
+constsSymbol (E b p) = constants b `union` constsProduct p
+
+constsAtom :: (Ord f, Ord c) => Atom f c -> Set c
+constsAtom (C c) = S.singleton c
+constsAtom (F _ args) = S.unions $ map constants args
