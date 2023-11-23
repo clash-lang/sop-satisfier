@@ -22,7 +22,6 @@ import qualified Data.Map as M
 import Data.Maybe (isNothing)
 
 import SoPSat.SoP
-import qualified SoPSat.SoP as SoP
 import SoPSat.Unify
 import SoPSat.Range
 import SoPSat.NewtonsMethod
@@ -254,16 +253,7 @@ assertRange :: (Ord f, Ord c)
             -- ^ Right-hand size expression
             -> SolverState f c Bool
             -- ^ Similar to @assert@ but uses only intervals from the state to check @lhs <= rhs@
-assertRange lhs rhs = uncurry assertRange' $ simplify lhs rhs
-  where
-    simplify lhs rhs =
-      let
-        (lhs',rhs') = splitSoP lhs rhs
-      in case SoP.gcd lhs' rhs' of
-        Nothing -> (lhs',rhs')
-        Just gcd' -> case (lhs' |/| gcd', rhs' |/| gcd') of
-          (Just lhs'', Just rhs'') -> (lhs'',rhs'')
-          _ -> (lhs',rhs')
+assertRange lhs rhs = uncurry assertRange' $ splitSoP lhs rhs
 
 assertRange' :: (Ord f, Ord c) => SoP f c -> SoP f c -> SolverState f c Bool
 assertRange' lhs rhs = do

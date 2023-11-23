@@ -42,14 +42,14 @@ substSymbol cons subst s@(A a)
 
 substSymbol cons subst (E b p) = substSoP cons subst b |^| substProduct cons subst p
 
-substsSubst :: (Ord f, Ord c) => [Unifier f c] -> [Unifier f c] -> [Unifier f c]
+substsSubst :: (Ord f, Ord f, Ord c) => [Unifier f c] -> [Unifier f c] -> [Unifier f c]
 substsSubst s = map subst
   where
     subst sub@(Subst {..}) = sub { sSoP = substsSoP s sSoP }
     subst uni@(Unify {..}) = uni { sLHS = substsSoP s sLHS,
                                    sRHS = substsSoP s sRHS }
 
-unifiers :: (Ord f, Ord c) => SoP f c -> SoP f c -> [Unifier f c]
+unifiers :: (Ord f, Ord f, Ord c) => SoP f c -> SoP f c -> [Unifier f c]
 unifiers (S [P [A a]]) (S []) = [Subst a (S [P [I 0]])]
 unifiers (S []) (S [P [A a]]) = [Subst a (S [P [I 0]])]
 
