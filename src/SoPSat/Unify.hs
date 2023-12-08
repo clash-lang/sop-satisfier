@@ -6,10 +6,8 @@ where
 import Data.List (intersect, (\\), nub, partition, find)
 import Data.Function (on)
 
-import GHC.Num.Integer (integerSqr)
-
 import SoPSat.SoP
-  (SoP (..), Product (..), Symbol (..), Atom (..),
+  (SoP (..), Product (..), Symbol (..), Atom,
     toSoP, (|+|), (|-|), (|*|), (|^|))
 import qualified SoPSat.SoP as SoP
 
@@ -18,15 +16,11 @@ data Unifier f c
   = Subst { sConst :: Atom f c
           , sSoP   :: SoP f c
           }
-  | Unify { sLHS   :: SoP f c
-          , sRHS   :: SoP f c
-          }
   deriving (Eq, Show)
 
 substsSoP :: (Ord f, Ord c) => [Unifier f c] -> SoP f c -> SoP f c
 substsSoP [] u = u
 substsSoP ((Subst{..}):s) u = substsSoP s (substSoP sConst sSoP u)
-substsSoP ((Unify{}):s)   u = substsSoP s u
 
 substSoP :: (Ord f, Ord c) => Atom f c -> SoP f c -> SoP f c -> SoP f c
 substSoP cons subs = foldr1 (|+|) . map (substProduct cons subs) . unS
@@ -42,19 +36,16 @@ substSymbol cons subst s@(A a)
 
 substSymbol cons subst (E b p) = substSoP cons subst b |^| substProduct cons subst p
 
-substsSubst :: (Ord f, Ord f, Ord c) => [Unifier f c] -> [Unifier f c] -> [Unifier f c]
+substsSubst :: (Ord f, Ord c) => [Unifier f c] -> [Unifier f c] -> [Unifier f c]
 substsSubst s = map subst
   where
     subst sub@(Subst {..}) = sub { sSoP = substsSoP s sSoP }
-    subst uni@(Unify {..}) = uni { sLHS = substsSoP s sLHS,
-                                   sRHS = substsSoP s sRHS }
 
-unifiers :: (Ord f, Ord f, Ord c) => SoP f c -> SoP f c -> [Unifier f c]
+unifiers :: (Ord f, Ord c) => SoP f c -> SoP f c -> [Unifier f c]
 unifiers (S [P [A a]]) (S []) = [Subst a (S [P [I 0]])]
 unifiers (S []) (S [P [A a]]) = [Subst a (S [P [I 0]])]
 
-unifiers (S [P [A a]]) s = [Subst a s]
-unifiers s (S [P [A a]]) = [Subst a s]
+unifiers (S [P [I i]]) (S [P [I j]]) = []
 
 -- (z ^ a) ~ (z ^ b) ==> [a := b]
 unifiers (S [P [E s1 p1]]) (S [P [E s2 p2]])
@@ -84,6 +75,17 @@ unifiers  (S [P [I j]]) (S [P [E (S [P [I i]]) p]])
       Just k  -> unifiers (S [p]) (S [P [I k]])
       Nothing -> []
 
+-- x ^ i = j => [x := root i j]
+unifiers (S [P [E s (P [I p])]]) (S [P [I j]])
+  = case integerRt p j of
+      Just k -> unifiers s (S [P [I k]])
+      Nothing -> []
+
+unifiers (S [P [I j]]) (S [P [E s (P [I p])]])
+  = case integerRt p j of
+      Just k -> unifiers s (S [P [I k]])
+      Nothing -> []
+
 -- a^d * a^e ~ a^c ==> [c := d + e]
 unifiers (S [P [E s1 p1]]) (S [p2]) = case collectBases p2 of
   Just (b:bs,ps) | all (== s1) (b:bs) ->
@@ -95,33 +97,18 @@ unifiers (S [p2]) (S [P [E s1 p1]]) = case collectBases p2 of
     unifiers (S ps) (S [p1])
   _ -> []
 
-unifiers (S [P [E s (P [I p])]]) (S [P [I j]])
-  = case integerRt p j of
-      Just k -> unifiers s (S [P [I k]])
-      Nothing -> []
-
-unifiers (S [P [I j]]) (S [P [E s (P [I p])]])
-  = case integerRt p j of
-      Just k -> unifiers s (S [P [I k]])
-      Nothing -> []
-
--- (i * a) ~ j ==> [a := div j i]
--- Where 'a' is a variable, 'i' and 'j' are integer literals, and j `mod` i == 0
-unifiers (S [P ((I i):ps)]) (S [P [I j]]) =
-  case safeDiv j i of
-    Just k -> unifiers (S [P ps]) (S [P [I k]])
-    _      -> []
-
-unifiers (S [P [I j]]) (S [P ((I i):ps)]) =
-  case safeDiv j i of
-    Just k -> unifiers (S [P ps]) (S [P [I k]])
-    _      -> []
+-- (i * a) ~ (j * b) ==> [a := (div j i) * b]
+-- Where 'a' and 'b' are variables, 'i' and 'j' are integer literals, and j `mod` i == 0
+unifiers (S [P ((I i):ps)]) (S [P ((I j):ps1)])
+  | (Just k) <- safeDiv j i = unifiers (S [P ps]) (SoP.int k |*| S [P ps1])
+  | (Just k) <- safeDiv i j = unifiers (SoP.int k |*| S [P ps]) (S [P ps1])
+  | otherwise = []
 
 -- (2*a) ~ (2*b) ==> [a := b]
--- unifiers' ct (S [P (p:ps1)]) (S [P (p':ps2)])
+-- unifiers (S [P (p:ps1)]) (S [P (p':ps2)])
 --     | p == p'   = unifiers' ct (S [P ps1]) (S [P ps2])
 --     | otherwise = []
-unifiers (S [P ps1]) (S [P ps2])
+unifiers (S [P ps1@(_:_:_)]) (S [P ps2])
     | null psx  = []
     | otherwise = unifiers (S [P ps1'']) (S [P ps2''])
   where
@@ -132,6 +119,21 @@ unifiers (S [P ps1]) (S [P ps2])
     ps2'' | null ps2' = [I 1]
           | otherwise = ps2'
     psx  = ps1 `intersect` ps2
+
+unifiers (S [P ps1]) (S [P ps2@(_:_:_)])
+    | null psx  = []
+    | otherwise = unifiers (S [P ps1'']) (S [P ps2''])
+  where
+    ps1'  = ps1 \\ psx
+    ps2'  = ps2 \\ psx
+    ps1'' | null ps1' = [I 1]
+          | otherwise = ps1'
+    ps2'' | null ps2' = [I 1]
+          | otherwise = ps2'
+    psx  = ps1 `intersect` ps2
+
+unifiers (S [P [A a]]) s = [Subst a s]
+unifiers s (S [P [A a]]) = [Subst a s]
 
 -- (2 + a) ~ 5 ==> [a := 3]
 unifiers (S ((P [I i]):ps1)) (S ((P [I j]):ps2))
@@ -204,10 +206,9 @@ integerLogBase x y | x > 1 && y > 0 =
 integerLogBase _ _ = Nothing
 
 integerLogBase' :: Integer -> Integer -> Integer
-integerLogBase' b m = e
+integerLogBase' b m = snd (go b)
   where
-    (_, e) = go b
-
+    go :: Integer -> (Integer, Integer)
     go pw | m < pw = (m, 0)
     go pw = case go (pw ^ 2) of
               (q, e) | q < pw -> (q, 2 * e)
@@ -216,6 +217,5 @@ integerLogBase' b m = e
 -- Naive implementation of exact integer root
 integerRt :: Integer -> Integer -> Maybe Integer
 integerRt 1 y = Just y
-integerRt 2 y = Just (integerSqr y)
 integerRt x y = find ((== y) . (^ x)) [1..y]
 

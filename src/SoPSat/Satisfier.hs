@@ -7,6 +7,9 @@ module SoPSat.Satisfier
   , declare
   , assert
   , unify
+    -- * State information
+  , range
+  , ranges
     -- * State execution
   , runStatements
   , evalStatements
@@ -33,33 +36,42 @@ parts [] = []
 parts (x:xs) = xs : map (x:) (parts xs)
 
 
+declareAtom :: (Ord f, Ord c) => Atom f c -> SolverState f c Bool
+declareAtom (C _) = return True
+declareAtom (F _ args) = and <$> mapM declareSoP args
+
 -- | Declares symbol in the state with the default interval
 -- If symbol exists preserves the old interval
-declareSymbol :: (Ord f, Ord c) => Symbol f c -> SolverState f c ()
-declareSymbol (I _) = return ()
+declareSymbol :: (Ord f, Ord c) => Symbol f c -> SolverState f c Bool
+declareSymbol (I _) = return True
 declareSymbol (A a) = do
   ranges <- getRanges
   when (isNothing (M.lookup a ranges)) (putRange a range)
+  declareAtom a
   where
     range = Range (Bound (int 0)) Inf
-declareSymbol (E b p) = declareSoP b >> declareProduct p
+declareSymbol (E b p) = (&&) <$> declareSoP b <*> declareProduct p
 
 -- | Similar to @declareSoP@ but for @Product@
-declareProduct :: (Ord f, Ord c) => Product f c -> SolverState f c ()
-declareProduct = mapM_ declareSymbol . unP
+declareProduct :: (Ord f, Ord c) => Product f c -> SolverState f c Bool
+declareProduct = fmap and . mapM declareSymbol . unP
 
 -- | Declare SoP in the state with default values
 -- Creates range for free-variables
-declareSoP :: (Ord f, Ord c) => SoP f c -> SolverState f c ()
-declareSoP = mapM_ declareProduct . unS
+declareSoP :: (Ord f, Ord c) => SoP f c -> SolverState f c Bool
+declareSoP s@(S ps)
+  | left /= int 0 = (&&) <$> (and <$> mapM declareProduct ps) <*> declareInEq LeR left right
+  | otherwise = and <$> mapM declareProduct ps
+  where
+    (left, right) = splitSoP (int 0) s
 
 -- | Declare expression to state, returns normalised expression
 --
 -- Common for @declare@, @assert@, and @unify@
 declareToState :: (Ord f, Ord c) => SoPE f c -> SolverState f c (SoPE f c)
 declareToState SoPE{..} = do
-  declareSoP lhs
-  declareSoP rhs
+  _ <- declareSoP lhs
+  _ <- declareSoP rhs
   us <- getUnifiers
   let
     lhs' = substsSoP us lhs
@@ -84,9 +96,9 @@ declareEq u v =
     upRes <- boundComp up1 up2
 
     -- Declaration and assertions of expression is done on the whole domain
-    -- if two expressions are equal, they will have intersecting domain
+    -- if two expressions are equal, their domains will intersect
     --
-    -- g(x) in [1,5] and forall x  g(x) = f(x) then f(x) in [1,5
+    -- g(x) in [1,5] and forall x  g(x) = f(x) then f(x) in [1,5]
     lowerUpdate <-
       case (lowRes,low1,low2) of
         (True,_,Bound lowB2) -> propagateInEqSoP u GeR lowB2
@@ -232,7 +244,7 @@ declare :: (Ord f, Ord c)
         -- State will become @Nothing@ if it cannot reason about these kind of expressions
 declare = declareToState >=> \SoPE{..} ->
   case op of
-    EqR -> declareEq lhs rhs >> return True
+    EqR -> declareEq lhs rhs
     _   -> declareInEq op lhs rhs
 
 -- | Assert that two expressions are equal using unifiers from the state
@@ -256,6 +268,7 @@ assertRange :: (Ord f, Ord c)
 assertRange lhs rhs = uncurry assertRange' $ splitSoP lhs rhs
 
 assertRange' :: (Ord f, Ord c) => SoP f c -> SoP f c -> SolverState f c Bool
+assertRange' (S [P [I i]]) (S [P [I j]]) = return (i <= j)
 assertRange' lhs rhs = do
   (Range _ up1) <- getRangeSoP lhs
   (Range low2 up2) <- getRangeSoP rhs
@@ -266,14 +279,15 @@ assertRange' lhs rhs = do
     else case (up1,low2) of
            (Inf,_) -> return False
            (_,Inf) -> return False
-           (Bound (S [P [I i1]]), Bound (S [P [I i2]]))
-             -> return (i1 <= i2)
-           (Bound ub1,            Bound lb2)
+           (Bound ub1, Bound lb2)
            -- Orders of recursive checks matters
            -- @runLemma2@ in the tests loops indefinitely
-             -> assert (SoPE lhs lb2 LeR)
-                <|> assert (SoPE ub1 rhs LeR)
-                <|> assert (SoPE ub1 lb2 LeR)
+             -> do
+               r1 <- if ub1 /= lhs then assert (SoPE ub1 rhs LeR)
+                                        else return False
+               r2 <- if lb2 /= rhs then assert (SoPE lhs lb2 LeR)
+                                        else return False
+               return (r1 || r2)
 
 -- | Assert using only Newton's method
 assertNewton :: (Ord f, Ord c)
@@ -319,8 +333,8 @@ assert :: (Ord f, Ord c)
        => SoPE f c
        -- ^ Asserted expression
        -> SolverState f c Bool
-       -- ^ True -- if expressions holds
-       -- False -- otherwise
+       -- ^ - True - if expressions holds
+       --   - False - otherwise
        --
        -- State will become @Nothing@ if it cannot reason about these kind of expressions
 assert = declareToState >=> \SoPE{..} ->
@@ -342,16 +356,36 @@ assert = declareToState >=> \SoPE{..} ->
 unify :: (Ord f, Ord c)
       => SoPE f c
       -- ^ Unified expression
-      -> SolverState f c (Maybe [SoPE f c])
-      -- ^ Nothing -- if the expression already holds
-      -- Just [unifier] -- minimal list of unifiers for the expression to hold
+      -> SolverState f c [SoPE f c]
+      -- ^ [unifier] -- Minimal list of unifiers for the expression to hold
+      --                The list is empty, if it never holds
       --
       -- State will always be valid after a call
 unify = declareToState >=> \expr@SoPE{..} ->
     case op of
-      EqR | lhs == rhs -> return Nothing
-          | otherwise -> return (Just $ filter (/= expr) $ map unifier2SoPE (unifiers lhs rhs))
-      _ -> return (Just [])
+      EqR -> return (filter (/= expr) $ map unifier2SoPE (unifiers lhs rhs))
+      _ -> return []
   where
-    unifier2SoPE Unify{..} = SoPE sLHS sRHS EqR
     unifier2SoPE Subst{..} = SoPE (symbol sConst) sSoP EqR
+
+-- | Get range of possible values for an expression
+range :: (Ord f, Ord c)
+      => SoP f c
+      -- ^ Expression
+      -> SolverState f c (Maybe (SoP f c), Maybe (SoP f c))
+      -- ^ (lower bound, upper bound) - Range for an expression
+      --
+      -- @Nothing@ means that the expression is unbounded
+      -- from that side
+range sop = do
+  _ <- declareSoP sop
+  (Range low up) <- getRangeSoP sop
+  return (boundSoP low, boundSoP up)
+
+-- ^ Get list of all ranges stored in a state
+ranges :: (Ord f, Ord c)
+       => SolverState f c [(Maybe (SoP f c), SoP f c, Maybe (SoP f c))]
+       -- ^ (lower bound, symbol, upper bound) - Similar to @range@
+       --     but also provides expression
+ranges =
+  map (\(a,Range low up) -> (boundSoP low, symbol a, boundSoP up)) . M.toList <$> getRanges

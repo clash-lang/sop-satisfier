@@ -14,6 +14,7 @@ module SoPSat.SolverMonad
   -- * Execution
   , runStatements
   , evalStatements
+  , withState
   )
 where
 
@@ -101,6 +102,9 @@ putUnifiers us = do
   (State rangeS unifyS) <- get
   put (State rangeS (substsSubst us unifyS ++ us))
 
+
+withState :: (Ord f, Ord c) => State f c -> SolverState f c ()
+withState = put
 
 -- ^ Runs computation returning result and resulting state
 runStatements :: (Ord f, Ord c) => SolverState f c a -> Maybe (a,State f c)

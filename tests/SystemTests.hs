@@ -26,8 +26,8 @@ import Data.Monoid (Any)
 type SolveTestCase   = SolverState String String Bool
 type SolveTestResult = Maybe Bool
 
-type UnifyTestCase   = SolverState String String (Maybe [SoPE String String])
-type UnifyTestResult = Maybe (Maybe [SoPE String String])
+type UnifyTestCase   = SolverState String String [SoPE String String]
+type UnifyTestResult = Maybe [SoPE String String]
 
 equalityGiven1 :: SolveTestCase
 equalityGiven1 =
@@ -329,6 +329,18 @@ func4 =
 runFunc4 :: SolveTestResult
 runFunc4 = evalStatements func4
 
+unifyExp :: UnifyTestCase
+unifyExp =
+  let
+    t = SoP.int 2
+    x1 = SoP.cons "x1"
+    x2 = SoP.cons "x2"
+  in do
+    unify (SoPE ((t |^| x1) |*| (t |^| (x1 |+| x1))) ((t |^| x2) |*| (t |^| (x2 |+| x2))) EqR)
+
+runUnifyExp :: UnifyTestResult
+runUnifyExp = evalStatements unifyExp
+
 main :: IO ()
 main = defaultMain tests
 
@@ -346,16 +358,6 @@ tests = testGroup "lib-tests"
         Just True @=? runEqSubst
       , testCase "1 <= y and x + 1 = 2 * y implies 2 * y - 1 = x" $
         Just True @=? runEqSubst2
-      , testCase "9 = x + x + x" $
-        Just True @=?
-        evalStatements (assert
-                        (SoPE (SoP.int 3 |*| SoP.cons "x") (SoP.int 9) EqR)
-                        :: SolveTestCase)
-      , testCase "6 = 2 * y + 4" $
-        Just True @=?
-        evalStatements (assert
-                        (SoPE (SoP.int 2 |*| SoP.cons "y" |+| SoP.int 4) (SoP.int 6) EqR)
-                        :: SolveTestCase)
       , testCase "Combined: 1 <= m and 2 * n = m implies 2 * n - 1 = m - 2 and 1 <= m" $
         Just True @=? runMultistep
       , testCase "Multistep: m = n1 + 1 and m + n = n2 + 1 implies n1 + n = n2" $
@@ -421,6 +423,15 @@ tests = testGroup "lib-tests"
         , testCase "2 <= 2^(n + m) implies 2 <= 2^(m + n)" $
           Just True @=? runImplication
         ]
+      , testGroup "Implications"
+        [ testCase "a = b - 1 implies b >= 1" $
+          Just True @=?
+          evalStatements (declare
+                          (SoPE (SoP.cons "a") (SoP.cons "b" |-| SoP.int 1) EqR)
+                          >>
+                          assert (SoPE (SoP.cons "b") (SoP.int 1) GeR)
+                          :: SolveTestCase)
+        ]
       ]
     , testGroup "False"
       [ testCase "Composite function x^3-2x^2+4<=2^x+x^2+3" $
@@ -433,7 +444,7 @@ tests = testGroup "lib-tests"
                         (SoPE (SoP.int 4 |*| SoP.cons "a") (SoP.int 2 |*| SoP.cons "a") LeR)
                         :: SolveTestCase)
       , testCase "foo(a, b, a ^ c) >= a" $
-        Nothing @=? runFunc3
+        Just False @=? runFunc3
       ]
     ]
   , testGroup "Ranges"
@@ -441,36 +452,58 @@ tests = testGroup "lib-tests"
     ]
   , testGroup "Unifiers"
     [ testCase "x = x always holds" $
-      Just Nothing @=?
+      Just [] @=?
       evalStatements (unify (SoPE (SoP.cons "x") (SoP.cons "x") EqR) :: UnifyTestCase)
     , testCase "t = a + b does not produce unifiers" $
-      Just (Just []) @=?
+      Just [] @=?
       evalStatements (unify (SoPE (SoP.cons "t") (SoP.cons "a" |+| SoP.cons "b") EqR)
                      :: UnifyTestCase)
     , testCase "a + b = a + c if b = c" $
-      Just (Just [SoPE (SoP.cons "b") (SoP.cons "c") EqR]) @=?
+      Just [SoPE (SoP.cons "b") (SoP.cons "c") EqR] @=?
       evalStatements (unify (SoPE (SoP.cons "a" |+| SoP.cons "b")
                                   (SoP.cons "a" |+| SoP.cons "c")
                                   EqR)
                      :: UnifyTestCase)
     , testCase "n = n + d" $
-      Just (Just []) @=?
+      Just [] @=?
       evalStatements (unify (SoPE (SoP.cons "n")
                                   (SoP.cons "n" |+| SoP.cons "d")
                                   EqR)
                      :: UnifyTestCase)
     , testCase "c = n implies n = n + d never holds" $
-      Just (Just []) @=?
+      Just [] @=?
       evalStatements (declare (SoPE (SoP.cons "c") (SoP.cons "n") EqR) >>
                       unify (SoPE (SoP.cons "n" |+| SoP.cons "d")
                                   (SoP.cons "n")
                                   EqR)
                      :: UnifyTestCase)
+    , testCase "9 = x + x + x if x = 3" $
+      Just [SoPE (SoP.cons "x") (SoP.int 3) EqR] @=?
+      evalStatements (unify
+                       (SoPE (SoP.int 3 |*| SoP.cons "x") (SoP.int 9) EqR)
+                       :: UnifyTestCase)
+    , testCase "6 = 2 * y + 4 if x = 1" $
+      Just [SoPE (SoP.cons "y") (SoP.int 1) EqR] @=?
+      evalStatements (unify
+                       (SoPE (SoP.int 2 |*| SoP.cons "y" |+| SoP.int 4) (SoP.int 6) EqR)
+                       :: UnifyTestCase)
+    , testCase "8 /= x + x + x never holds" $
+      Just [] @=?
+      evalStatements (unify
+                       (SoPE (SoP.int 3 |*| SoP.cons "x") (SoP.int 8) EqR)
+                       :: UnifyTestCase)
+    , testCase "7 /= 2*y+4 never holds" $
+      Just [] @=?
+      evalStatements (unify
+                      (SoPE (SoP.int 2 |*| SoP.cons "y" |+| SoP.int 4) (SoP.int 7) EqR)
+                       :: UnifyTestCase)
     , testCase "a^b = a^c if b = c" $
-      Just (Just [SoPE (SoP.cons "b") (SoP.cons "c") EqR]) @=?
+      Just [SoPE (SoP.cons "b") (SoP.cons "c") EqR] @=?
       evalStatements (unify (SoPE (SoP.cons "a" |^| SoP.cons "b")
                                   (SoP.cons "a" |^| SoP.cons "c")
                                   EqR)
                      :: UnifyTestCase)
+    , testCase "2^x1 * 2^(x1 + x1) = 2^x2 * 2^(x2 + x2) holds if x1 = x2" $
+      Just [SoPE (SoP.cons "x1") (SoP.cons "x2") EqR] @=? runUnifyExp
     ]
   ]
