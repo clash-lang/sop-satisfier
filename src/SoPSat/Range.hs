@@ -88,7 +88,7 @@ rangeMul (Range low1 up1) (Range low2 up2) = Just $
 rangeExp :: (Ord f, Ord c) => Range f c -> Range f c -> Maybe (Range f c)
 rangeExp (Range Inf _) (Range Inf _) = Nothing
 rangeExp (Range _ up1) (Range Inf up2) = Just $
-  Range (Bound (S [P [I 0]])) (boundExp up1 up2)
+  Range (Bound (int 0)) (boundExp up1 up2)
 rangeExp (Range low1 up1) (Range low2 up2) = Just $
   Range (boundExp low1 low2) (boundExp up1 up2)
 

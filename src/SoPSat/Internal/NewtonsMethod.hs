@@ -1,21 +1,22 @@
-module SoPSat.NewtonsMethod
-  ( newtonMethod
-  , evalSoP
-  )
+module SoPSat.Internal.NewtonsMethod
 where
 
 import Data.Map (Map)
 import qualified Data.Map as M
 import Data.Maybe (fromJust)
 
-import SoPSat.SoP
-  ( SoP(..)
-  , Product(..)
-  , Symbol(..)
-  , Atom(..)
-  , atoms)
+import SoPSat.SoP (atoms)
+import SoPSat.Internal.SoP
+  (Atom(..), Symbol(..), Product(..), SoP(..))
 
-evalSoP :: (Ord f, Ord c, Floating n) => SoP f c -> Map (Atom f c) n -> n
+
+-- | Evaluates SoP given atom bindings
+evalSoP :: (Ord f, Ord c, Floating n)
+        => SoP f c
+        -- ^ Expression to evaluate
+        -> Map (Atom f c) n
+        -- ^ Bindings from atoms to values
+        -> n
 evalSoP (S []) _ = 0
 evalSoP (S ps) binds = sum $ map (`evalProduct` binds) ps
 
@@ -52,7 +53,13 @@ derivativeSymbol e@(E b p) atom = \binds ->
   where expExpr = evalSymbol e
         logExpr = log. evalSoP b
 
-newtonMethod :: (Ord f, Ord c, Ord n, Floating n) => SoP f c -> Either (Map (Atom f c) n) (Map (Atom f c) n)
+-- | Finds if an expression can be equal to zero
+newtonMethod :: (Ord f, Ord c, Ord n, Floating n)
+             => SoP f c
+             -- ^ Expression to check
+             -> Either (Map (Atom f c) n) (Map (Atom f c) n)
+             -- ^ @Right binds@ - Atom bindings when expression is equal to zero
+             --   @Left binds@ - Last checked bindings
 newtonMethod sop = go init_guess steps
   where
     consts     = atoms sop

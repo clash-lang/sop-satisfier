@@ -1,6 +1,6 @@
 cabal-version:      3.0
 name:               sop-satisfier
-version:            0.3.2.1
+version:            0.3.2.3
 synopsis:           Check satisfiability of expressions on natural numbers
 description:
     Expression satisfier on natural numbers.
@@ -13,6 +13,7 @@ license-file:       LICENSE
 author:             Aleksandr Pokatilov
 maintainer:         pokatilov0802@gmail.com
 build-type:         Simple
+category:           Solver, Symbolic Arithmetic
 extra-doc-files:    CHANGELOG.md
                     README.md
 
@@ -29,8 +30,9 @@ library
                       SoPSat.SoP,
                       SoPSat.Unify,
                       SoPSat.Range,
-                      SoPSat.NewtonsMethod,
-                      SoPSat.SolverMonad
+                      SoPSat.Internal.SoP,
+                      SoPSat.Internal.NewtonsMethod,
+                      SoPSat.Internal.SolverMonad
     build-depends:    base >=4.16 && <5,
                       containers ^>=0.6.7,
                       transformers >=0.5

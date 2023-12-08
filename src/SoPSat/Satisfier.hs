@@ -13,6 +13,8 @@ module SoPSat.Satisfier
     -- * State execution
   , runStatements
   , evalStatements
+    -- * Expressions
+  , evalSoP
   )
 where
 
@@ -25,10 +27,12 @@ import qualified Data.Map as M
 import Data.Maybe (isNothing)
 
 import SoPSat.SoP
+import SoPSat.Internal.SoP
+  (Atom(..), Symbol(..), Product(..), SoP(..))
 import SoPSat.Unify
 import SoPSat.Range
-import SoPSat.NewtonsMethod
-import SoPSat.SolverMonad
+import SoPSat.Internal.NewtonsMethod
+import SoPSat.Internal.SolverMonad
 
 
 parts :: [a] -> [[a]]
@@ -36,6 +40,8 @@ parts [] = []
 parts (x:xs) = xs : map (x:) (parts xs)
 
 
+-- | Declares atom in the state
+-- ignores constants and only declare function arguments
 declareAtom :: (Ord f, Ord c) => Atom f c -> SolverState f c Bool
 declareAtom (C _) = return True
 declareAtom (F _ args) = and <$> mapM declareSoP args

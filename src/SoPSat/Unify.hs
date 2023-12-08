@@ -7,9 +7,10 @@ import Data.List (intersect, (\\), nub, partition, find)
 import Data.Function (on)
 
 import SoPSat.SoP
-  (SoP (..), Product (..), Symbol (..), Atom,
-    toSoP, (|+|), (|-|), (|*|), (|^|))
+  (toSoP, (|+|), (|-|), (|*|), (|^|))
 import qualified SoPSat.SoP as SoP
+import SoPSat.Internal.SoP
+  (Atom(..), Symbol(..), Product(..), SoP(..))
 
 
 data Unifier f c

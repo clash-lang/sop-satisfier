@@ -1,21 +1,6 @@
 {-# LANGUAGE RecordWildCards #-}
 
-module SoPSat.SolverMonad
-  ( -- * State
-    SolverState
-  , State
-  -- * Getters/setters
-  , getRanges
-  , getRange
-  , getRangeSoP
-  , putRange
-  , getUnifiers
-  , putUnifiers
-  -- * Execution
-  , runStatements
-  , evalStatements
-  , withState
-  )
+module SoPSat.Internal.SolverMonad
 where
 
 import Control.Monad.Trans.State.Strict
@@ -26,12 +11,13 @@ import Control.Monad.Trans.State.Strict
   , put
   )
 
-
 import Data.Map (Map)
 import qualified Data.Map as M
 
 import SoPSat.SoP
 import qualified SoPSat.SoP as SoP
+import SoPSat.Internal.SoP
+  (Atom(..), Symbol(..), Product(..), SoP(..))
 import SoPSat.Unify
 import SoPSat.Range
 
@@ -53,6 +39,7 @@ type SolverState f c = StateT (State f c) Maybe
 maybeFail :: (MonadFail m) => Maybe a -> m a
 maybeFail (Just a) = return a
 maybeFail Nothing = fail ""
+
 
 getRanges :: (Ord f, Ord c) => SolverState f c (Map (Atom f c) (Range f c))
 getRanges = gets (\(State rangeS _) -> rangeS)
@@ -102,14 +89,14 @@ putUnifiers us = do
   (State rangeS unifyS) <- get
   put (State rangeS (substsSubst us unifyS ++ us))
 
-
+-- | Puts a state to use during computations
 withState :: (Ord f, Ord c) => State f c -> SolverState f c ()
 withState = put
 
--- ^ Runs computation returning result and resulting state
+-- | Runs computation returning result and resulting state
 runStatements :: (Ord f, Ord c) => SolverState f c a -> Maybe (a,State f c)
 runStatements stmts = runStateT stmts mempty
 
--- ^ Similar to @runStatements@ but does not return final state
+-- | Similar to @runStatements@ but does not return final state
 evalStatements :: (Ord f, Ord c) => SolverState f c a -> Maybe a
 evalStatements stmts = evalStateT stmts mempty
