@@ -1,6 +1,6 @@
 cabal-version:      3.0
-name:               solver-sop-monad
-version:            0.2.1.1
+name:               sop-satisfier
+version:            0.3.1.1
 -- synopsis:
 -- description:
 license:            GPL-3.0-or-later
@@ -33,7 +33,7 @@ test-suite system-tests
     type:             exitcode-stdio-1.0
     main-is:          SystemTests.hs
     build-depends:    base >=4.16,
-                      solver-sop-monad,
+                      sop-satisfier,
                       tasty ^>= 1.5,
                       tasty-hunit ^>=0.9
     hs-source-dirs:   tests
