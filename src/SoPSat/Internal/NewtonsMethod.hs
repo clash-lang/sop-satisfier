@@ -17,29 +17,80 @@ evalSoP :: (Ord f, Ord c, Floating n)
         -> Map (Atom f c) n
         -- ^ Bindings from atoms to values
         -> n
+        -- ^ Evaluation result
 evalSoP (S []) _ = 0
 evalSoP (S ps) binds = sum $ map (`evalProduct` binds) ps
 
-evalProduct :: (Ord f, Ord c, Floating n) => Product f c -> Map (Atom f c) n -> n
+
+-- | Evaluates product given atom bindings
+--
+-- Used by @evalSoP@
+evalProduct :: (Ord f, Ord c, Floating n)
+            => Product f c
+            -- ^ Product to evalute
+            -> Map (Atom f c) n
+            -- ^ Atom bindings
+            -> n
+            -- ^ Evaluation results
 evalProduct (P ss) binds = product $ map (`evalSymbol` binds) ss
 
-evalSymbol :: (Ord f, Ord c, Floating n) => Symbol f c -> Map (Atom f c) n -> n
+-- | Evaluates symbol given atom bindings
+--
+-- Used by @evalProduct@
+evalSymbol :: (Ord f, Ord c, Floating n)
+           => Symbol f c
+           -- ^ Symbol to evaluate
+           -> Map (Atom f c) n
+           -- ^ Atom bindings
+           -> n
+           -- ^ Evaluation result
 evalSymbol (I i) _     = fromInteger i
 evalSymbol (A a) binds = f $ M.lookup a binds
   where f (Just n) = n
         f Nothing  = 0
 evalSymbol (E b p) binds = exp (evalProduct p binds * log (evalSoP b binds))
 
-derivative :: (Ord f, Ord c, Floating n) => SoP f c -> Atom f c -> (Map (Atom f c) n -> n)
+-- | Analitically computes derivative of an expression
+-- with respect to an atom
+--
+-- Returns function similar to @evalSoP@
+derivative :: (Ord f, Ord c, Floating n)
+           => SoP f c
+           -- ^ Expression to take a derivative of
+           -> Atom f c
+           -- ^ Atom to take a derivetive with respect to
+           -> (Map (Atom f c) n -> n)
+           -- ^ Function from bindings, representing point,
+           -- to value of the derivative at that point           
 derivative sop symb = \binds -> sum $ d <*> [binds]
   where d = map (`derivativeProduct` symb) $ unS sop
 
-derivativeProduct :: (Ord f, Ord c, Floating n) => Product f c -> Atom f c -> (Map (Atom f c) n -> n)
+-- | Analitically computes derivative of a product
+-- with respect to an atom
+--
+-- Used by @derivative@
+derivativeProduct :: (Ord f, Ord c, Floating n)
+                  => Product f c
+                  -- ^ Product to take a derivative of
+                  -> Atom f c
+                  -- ^ Atom to take a derivative with respect to
+                  -> (Map (Atom f c) n -> n)
+                  -- ^ Function from bindings to a value
 derivativeProduct (P [])     _ = const 0
 derivativeProduct (P (s:ss)) symb = \binds -> derivativeSymbol s symb binds * evalProduct ps binds + evalSymbol s binds * derivativeProduct ps symb binds
   where ps = P ss
 
-derivativeSymbol :: (Ord f, Ord c, Floating n) => Symbol f c -> Atom f c -> (Map (Atom f c) n -> n)
+-- | Analitically computes derivative of a symbol
+-- with respect to an atom
+--
+-- Used by @derivativeProduct@
+derivativeSymbol :: (Ord f, Ord c, Floating n)
+                 => Symbol f c
+                 -- ^ Symbol to take a derivate of
+                 -> Atom f c
+                 -- ^ Atom to take a derivate with respect to
+                 -> (Map (Atom f c) n -> n)
+                 -- ^ Function from bindings to a value
 derivativeSymbol (I _) _ = const 0
 derivativeSymbol (A a) atom
   | a == atom = const 1

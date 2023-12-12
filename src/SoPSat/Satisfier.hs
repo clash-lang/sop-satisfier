@@ -11,6 +11,7 @@ module SoPSat.Satisfier
   , range
   , ranges
     -- * State execution
+  , withState
   , runStatements
   , evalStatements
     -- * Expressions
@@ -86,6 +87,7 @@ declareToState SoPE{..} = do
 
 
 -- | Declare equality of two expressions
+-- Adds new unifiers to the state
 declareEq :: (Ord f, Ord c)
           => SoP f c
           -- ^ First expression
@@ -93,7 +95,6 @@ declareEq :: (Ord f, Ord c)
           -- ^ Second expression
           -> SolverState f c Bool
           -- ^ Similar to @declare@ but handles only equalities
-          -- Adds new unifiers to the state
 declareEq u v =
   do
     (Range low1 up1) <- getRangeSoP u
@@ -209,6 +210,7 @@ propagateInEqSoP (S ps) rel target_bound =
                         (target_bound |-| sm)
 
 -- | Declare inequality of two expressions
+-- Updates interval information in the state
 declareInEq :: (Ord f, Ord c)
             => OrdRel
             -- ^ Relationship between expressions
@@ -218,7 +220,6 @@ declareInEq :: (Ord f, Ord c)
             -- ^ Right-hand side expression
             -> SolverState f c Bool
             -- ^ Similat to @declare@ but handles only inequalities
-            -- Updates interval information in the state
 declareInEq EqR u v = declareEq u v >> return True
 declareInEq op u v =
     let
@@ -244,8 +245,8 @@ declare :: (Ord f, Ord c)
         => SoPE f c
         -- ^ Expression to declare
         -> SolverState f c Bool
-        -- ^ True -- if expression was declared
-        -- False -- if expression contradicts current state
+        -- ^ - True - if expression was declared
+        --   - False - if expression contradicts current state
         --
         -- State will become @Nothing@ if it cannot reason about these kind of expressions
 declare = declareToState >=> \SoPE{..} ->
@@ -364,8 +365,8 @@ unify :: (Ord f, Ord c)
       => SoPE f c
       -- ^ Unified expression
       -> SolverState f c [SoPE f c]
-      -- ^ [unifier] -- Minimal list of unifiers for the expression to hold
-      --                The list is empty, if it never holds
+      -- ^ List of unifiers - Minimal list of unifiers for the expression to hold.
+      -- The list is empty, if it never holds
       --
       -- State will always be valid after a call
 unify = declareToState >=> \expr@SoPE{..} ->
@@ -389,7 +390,7 @@ range sop = do
   (Range low up) <- getRangeSoP sop
   return (boundSoP low, boundSoP up)
 
--- ^ Get list of all ranges stored in a state
+-- | Get list of all ranges stored in a state
 ranges :: (Ord f, Ord c)
        => SolverState f c [(Maybe (SoP f c), SoP f c, Maybe (SoP f c))]
        -- ^ (lower bound, symbol, upper bound) - Similar to @range@

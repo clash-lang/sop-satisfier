@@ -38,7 +38,9 @@ import qualified Data.Set as S
 
 import SoPSat.Internal.SoP
 
-
+-- | Convertable to a sum of products
+-- with `f` being type to represent functions
+-- and `c` being type to represent constants
 class (Ord f, Ord c) => ToSoP f c a where
   toSoP :: a -> SoP f c
 
@@ -81,9 +83,9 @@ instance (Show f, Show c) => Show (SoP f c) where
 
 -- | Order relationship
 data OrdRel
-  = LeR
-  | EqR
-  | GeR
+  = LeR -- ^ Less than or equal relationship
+  | EqR -- ^ Equality relationship
+  | GeR -- ^ Greater than or equal relationship
   deriving (Eq, Ord)
 
 instance Show OrdRel where
@@ -91,8 +93,13 @@ instance Show OrdRel where
   show EqR = "="
   show GeR = ">="
 
--- | Expression
-data SoPE f c = SoPE { lhs :: SoP f c, rhs :: SoP f c, op :: OrdRel }
+-- | Expression 
+data SoPE f c
+  = SoPE
+    { lhs :: SoP f c -- ^ Left hand side of the expression
+    , rhs :: SoP f c -- ^ Right hand side of the expression
+    , op :: OrdRel -- ^ Relationship between sides
+    }
 
 instance (Eq f, Eq c) => Eq (SoPE f c) where
   (SoPE l1 r1 op1) == (SoPE l2 r2 op2)
@@ -152,34 +159,60 @@ infixl 6 |-|
 
 infixl 7 |/|
 -- | Division of @SoP@s
+--
 -- Produces a tuple of a quotient and a remainder
 -- NB. Not implemented
 (|/|) :: (Ord f, Ord c) => SoP f c -> SoP f c -> (SoP f c, SoP f c)
 (|/|) = mergeSoPDiv
 
+-- | Collects @Atom@s used in a @SoP@
 atoms :: (Ord f, Ord c) => SoP f c -> Set (Atom f c)
 atoms = S.unions . map atomsProduct . unS
 
+-- | Collects @Atom@s used in a @Product@
+--
+-- Used by @atoms@
 atomsProduct :: (Ord f, Ord c) => Product f c -> Set (Atom f c)
 atomsProduct = S.unions . map atomsSymbol . unP
 
-atomsSymbol :: (Ord f, Ord c) => Symbol f c -> Set (Atom f c)
+-- | Collect @Atom@s used in @Symbol@s
+--
+-- Used by @atomsProduct@
+atomsSymbol :: (Ord f, Ord c) => Symbol f c
+  -> Set (Atom f c) -- ^ - Empty - if the symbol is an integer
+                    --   - Singleton - if the symbol is an atom
+                    --   - Set of symbols - if the symbol is an exponentiation
 atomsSymbol (I _) = S.empty
 atomsSymbol (A a) = S.singleton a
 atomsSymbol (E b p) = atoms b `union` atomsProduct p
 
-
+-- | Collects constants used in @SoP@
+--
+-- Almost equivalent to
+-- @Data.Set.filter isConst . atoms@
+-- , but also collects constants used in functions
 constants :: (Ord f, Ord c) => SoP f c -> Set c
 constants = S.unions . map constsProduct . unS
 
+-- | Collects constants used in @Product@
+--
+-- Used by @constants@
 constsProduct :: (Ord f, Ord c) => Product f c -> Set c
 constsProduct = S.unions . map constsSymbol . unP
 
+-- | Collects constants used in @Symbol@
+--
+-- Used by @constsProduct@
 constsSymbol :: (Ord f, Ord c) => Symbol f c -> Set c
 constsSymbol (I _) = S.empty
 constsSymbol (A a) = constsAtom a
 constsSymbol (E b p) = constants b `union` constsProduct p
 
-constsAtom :: (Ord f, Ord c) => Atom f c -> Set c
+-- | Collects constants used in @Atom@
+--
+-- Used by @constsSymbol@
+constsAtom :: (Ord f, Ord c) => Atom f c
+  -> Set c -- ^ Singleton - if the atom is a constant
+           --   Set of constants - if the atom is a function
 constsAtom (C c) = S.singleton c
 constsAtom (F _ args) = S.unions $ map constants args

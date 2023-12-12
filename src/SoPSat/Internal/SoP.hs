@@ -5,20 +5,24 @@ where
 import Data.Either (partitionEithers)
 import Data.List (sort, intercalate)
 
--- | Atom
+-- | Atomic part of a @SoP@
+-- like constants and unknown functions
 data Atom f c
-  = C c
-  | F f [SoP f c]
+  = C c -- ^ Constant
+  | F f [SoP f c] -- ^ Unknown function
   deriving (Eq, Ord)
 
--- | Symbol
+-- | The most basic part used during reasoning:
+-- - Numbers
+-- - Atoms
+-- - Exponents
 data Symbol f c
-  = I Integer
-  | A (Atom f c)
-  | E (SoP f c) (Product f c)
+  = I Integer -- ^ Number in an expression
+  | A (Atom f c) -- ^ Atom in an expression
+  | E (SoP f c) (Product f c) -- ^ Exponentiation
   deriving (Eq, Ord)
 
--- | Product
+-- | Product of symbols
 newtype Product f c = P { unP :: [Symbol f c] }
   deriving Eq
 
@@ -28,7 +32,7 @@ instance (Ord f, Ord c) => Ord (Product f c) where
   compare (P (_:_)) (P [_])   = GT
   compare (P xs)    (P ys)    = compare xs ys
 
--- | SoP
+-- | Sum of Products
 newtype SoP f c = S { unS :: [Product f c] }
   deriving Ord
 
