@@ -1,6 +1,6 @@
 {-# LANGUAGE RecordWildCards #-}
 
-module SoPSat.Unify
+module SoPSat.Internal.Unify
 where
 
 import Data.List (intersect, (\\), nub, partition, find)
@@ -46,7 +46,7 @@ unifiers :: (Ord f, Ord c) => SoP f c -> SoP f c -> [Unifier f c]
 unifiers (S [P [A a]]) (S []) = [Subst a (S [P [I 0]])]
 unifiers (S []) (S [P [A a]]) = [Subst a (S [P [I 0]])]
 
-unifiers (S [P [I i]]) (S [P [I j]]) = []
+unifiers (S [P [I _]]) (S [P [I _]]) = []
 
 -- (z ^ a) ~ (z ^ b) ==> [a := b]
 unifiers (S [P [E s1 p1]]) (S [P [E s2 p2]])
@@ -170,6 +170,7 @@ unifiers' (S [P [I i],P [A a]]) s2
 unifiers' s1 (S [P [I i],P [A a]])
   = [Subst a (s1 |+| S [P [I (negate i)]])]
 unifiers' _ _ = []
+
 
 splitSoP :: (Ord f, Ord c) => SoP f c -> SoP f c -> (SoP f c, SoP f c)
 splitSoP u v = (lhs, rhs)

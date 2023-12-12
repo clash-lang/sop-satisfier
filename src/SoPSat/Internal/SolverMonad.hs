@@ -18,8 +18,8 @@ import SoPSat.SoP
 import qualified SoPSat.SoP as SoP
 import SoPSat.Internal.SoP
   (Atom(..), Symbol(..), Product(..), SoP(..))
-import SoPSat.Unify
-import SoPSat.Range
+import SoPSat.Internal.Unify
+import SoPSat.Internal.Range
 
 
 data (Ord f, Ord c) => State f c

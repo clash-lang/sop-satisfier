@@ -1,6 +1,6 @@
 cabal-version:      3.0
 name:               sop-satisfier
-version:            0.3.2.3
+version:            0.3.3.1
 synopsis:           Check satisfiability of expressions on natural numbers
 description:
     Expression satisfier on natural numbers.
@@ -28,8 +28,8 @@ library
     import:           warnings
     exposed-modules:  SoPSat.Satisfier,
                       SoPSat.SoP,
-                      SoPSat.Unify,
-                      SoPSat.Range,
+                      SoPSat.Internal.Unify,
+                      SoPSat.Internal.Range,
                       SoPSat.Internal.SoP,
                       SoPSat.Internal.NewtonsMethod,
                       SoPSat.Internal.SolverMonad

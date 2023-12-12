@@ -29,8 +29,8 @@ import Data.Maybe (isNothing)
 import SoPSat.SoP
 import SoPSat.Internal.SoP
   (Atom(..), Symbol(..), Product(..), SoP(..))
-import SoPSat.Unify
-import SoPSat.Range
+import SoPSat.Internal.Unify
+import SoPSat.Internal.Range
 import SoPSat.Internal.NewtonsMethod
 import SoPSat.Internal.SolverMonad
 
@@ -288,6 +288,7 @@ assertRange' lhs rhs = do
            (Bound ub1, Bound lb2)
            -- Orders of recursive checks matters
            -- @runLemma2@ in the tests loops indefinitely
+           -- possibly other test cases too
              -> do
                r1 <- if ub1 /= lhs then assert (SoPE ub1 rhs LeR)
                                         else return False

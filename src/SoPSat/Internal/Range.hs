@@ -1,4 +1,4 @@
-module SoPSat.Range
+module SoPSat.Internal.Range
   ( Range(..)
   , Bound(..)
   , boundSoP
