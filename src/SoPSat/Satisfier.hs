@@ -21,7 +21,7 @@ where
 
 import Control.Applicative ((<|>))
 import Control.Arrow       (second)
-import Control.Monad       (when, (>=>))
+import Control.Monad       (when, (>=>), unless)
 
 import Data.Map (Map)
 import qualified Data.Map as M
@@ -77,12 +77,13 @@ declareSoP s@(S ps)
 -- Common for @declare@, @assert@, and @unify@
 declareToState :: (Ord f, Ord c) => SoPE f c -> SolverState f c (SoPE f c)
 declareToState SoPE{..} = do
-  _ <- declareSoP lhs
-  _ <- declareSoP rhs
+  r1 <- declareSoP lhs
+  r2 <- declareSoP rhs
   us <- getUnifiers
   let
     lhs' = substsSoP us lhs
     rhs' = substsSoP us rhs
+  unless (r1 && r2) (fail "")
   return (SoPE lhs' rhs' op)
 
 

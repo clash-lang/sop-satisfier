@@ -368,6 +368,12 @@ tests = testGroup "lib-tests"
         [ testCase "a + max(a + b, c) = max(b + a, c) + a" $
           Just True @=? runFunc1
         ]
+      , testGroup "Natural numbers"
+        [ testCase "m = n - 1 implies m + 1 = n" $
+          Nothing @=? evalStatements (declare (SoPE (SoP.cons "m") (SoP.cons "n" |-| SoP.int 1) EqR) >>
+                                      assert (SoPE (SoP.cons "m" |+| SoP.int 1) (SoP.cons "n") EqR)
+                                      :: SolveTestCase)
+        ]
       ]
     , testGroup "False"
       [ testCase "x + 2 /= x + 3" $
@@ -425,7 +431,7 @@ tests = testGroup "lib-tests"
         ]
       , testGroup "Implications"
         [ testCase "a = b - 1 implies b >= 1" $
-          Just True @=?
+          Nothing @=?
           evalStatements (declare
                           (SoPE (SoP.cons "a") (SoP.cons "b" |-| SoP.int 1) EqR)
                           >>
