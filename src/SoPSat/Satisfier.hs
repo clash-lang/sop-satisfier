@@ -67,7 +67,7 @@ declareProduct = fmap and . mapM declareSymbol . unP
 -- Creates range for free-variables
 declareSoP :: (Ord f, Ord c) => SoP f c -> SolverState f c Bool
 declareSoP s@(S ps)
-  | left /= int 0 = (&&) <$> (and <$> mapM declareProduct ps) <*> declareInEq LeR left right
+  | left /= int 0 = (&&) <$> (and <$> mapM declareProduct ps) <*> assert (SoPE left right LeR)
   | otherwise = and <$> mapM declareProduct ps
   where
     (left, right) = splitSoP (int 0) s

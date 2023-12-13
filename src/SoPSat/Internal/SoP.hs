@@ -3,7 +3,7 @@ where
 
 -- External
 import Data.Either (partitionEithers)
-import Data.List (sort, intercalate)
+import Data.List (sort)
 
 -- | Atomic part of a @SoP@
 -- like constants and unknown functions

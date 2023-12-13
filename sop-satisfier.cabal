@@ -1,6 +1,6 @@
 cabal-version:      3.0
 name:               sop-satisfier
-version:            0.3.3.1
+version:            0.3.4.1
 synopsis:           Check satisfiability of expressions on natural numbers
 description:
     Expression satisfier on natural numbers.
