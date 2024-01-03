@@ -146,17 +146,14 @@ propagateInEqSymbol (I _) _ _ =
   return True -- No need to update numbers
 propagateInEqSymbol (A a) rel bound = do
   (Range low up) <- getRange a
+  -- New bound is less/greater than the old one
+  -- The check is done before propagation
+  -- This assumption is potentially wrong
   case rel of
-    LeR -- TODO: Check for update being valid (newUpBound >= lowBound)
-      | up == Inf -- Range isn't bounded from the top can unconditionally update
-        -> putRange a (Range low rangeBound)
-      | otherwise -- TODO: Check for the range not being widened
-        -> putRange a (Range low rangeBound)
-    GeR -- TODO: The same as for LeR
-      | low == Bound (int 0)
-        -> putRange a (Range rangeBound up)
-      | otherwise
-        -> putRange a (Range rangeBound up)
+    LeR
+      -> putRange a (Range low rangeBound)
+    GeR
+      -> putRange a (Range rangeBound up)
     EqR -> error "propagateInEqSymbol:EqR: unreachable"
   return True
   where
@@ -220,7 +217,7 @@ declareInEq :: (Ord f, Ord c)
             -> SoP f c
             -- ^ Right-hand side expression
             -> SolverState f c Bool
-            -- ^ Similat to @declare@ but handles only inequalities
+            -- ^ Similar to @declare@ but handles only inequalities
 declareInEq EqR u v = declareEq u v >> return True
 declareInEq op u v =
     let
