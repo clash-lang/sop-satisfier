@@ -31,8 +31,6 @@ module SoPSat.SoP
   )
 where
 
-import Data.List (intercalate)
-
 import Data.Set (Set, union)
 import qualified Data.Set as S
 
@@ -54,32 +52,14 @@ isFunction :: Atom f c -> Bool
 isFunction (F _ _) = True
 isFunction _ = False
 
-
-instance (Show f, Show c) => Show (Atom f c) where
-  show (C c) = show c
-  show (F f args) = show f ++ "(" ++ intercalate ", " (map show args) ++ ")"
-
 instance (Ord f, Ord c) => ToSoP f c (Symbol f c) where
   toSoP s = simplifySoP $ S [P [s]]
-
-instance (Show f, Show c) => Show (Symbol f c) where
-  show (E s p) = show s ++ "^" ++ show p
-  show (I i) = show i
-  show (A a) = show a
 
 instance (Ord f, Ord c) => ToSoP f c (Product f c) where
   toSoP p = simplifySoP $ S [p]
 
-instance (Show f, Show c) => Show (Product f c) where
-  show (P [s]) = show s
-  show (P ss) = "(" ++ intercalate " * " (map show ss) ++ ")"
-
 instance (Ord f, Ord c) => ToSoP f c (SoP f c) where
   toSoP = simplifySoP
-
-instance (Show f, Show c) => Show (SoP f c) where
-  show (S [p]) = show p
-  show (S ps) = "(" ++ intercalate " + " (map show ps) ++ ")"
 
 -- | Order relationship
 data OrdRel
@@ -93,7 +73,7 @@ instance Show OrdRel where
   show EqR = "="
   show GeR = ">="
 
--- | Expression 
+-- | Expression
 data SoPE f c
   = SoPE
     { lhs :: SoP f c -- ^ Left hand side of the expression

@@ -52,11 +52,11 @@ declareAtom (F _ args) = and <$> mapM declareSoP args
 declareSymbol :: (Ord f, Ord c) => Symbol f c -> SolverState f c Bool
 declareSymbol (I _) = return True
 declareSymbol (A a) = do
-  ranges <- getRanges
-  when (isNothing (M.lookup a ranges)) (putRange a range)
+  existing <- getRanges
+  when (isNothing (M.lookup a existing)) (putRange a rangeNatural)
   declareAtom a
   where
-    range = Range (Bound (int 0)) Inf
+    rangeNatural = Range (Bound (int 0)) Inf
 declareSymbol (E b p) = (&&) <$> declareSoP b <*> declareProduct p
 
 -- | Similar to @declareSoP@ but for @Product@
@@ -118,7 +118,7 @@ declareEq u v =
         (True,_,Bound upB2) -> propagateInEqSoP u LeR upB2
         (False,Bound upB1,_) -> propagateInEqSoP v LeR upB1
         (_,_,_) -> return True
-    
+
     declareEq' u v
     return (lowerUpdate && upperUpdate)
   where
@@ -318,7 +318,7 @@ assertNewton lhs rhs =
       | otherwise
       = return True
 
-    checkBinds :: (Ord f, Ord c, Ord n, Floating n) => Map (Atom f c) n -> SolverState f c Bool
+    checkBinds :: (Ord f, Ord c) => Map (Atom f c) Double -> SolverState f c Bool
     checkBinds binds = and <$> mapM (uncurry (checkBind binds)) (M.toList binds)
 
     checkBind :: (Ord f, Ord c, Ord n, Floating n) => Map (Atom f c) n -> Atom f c -> n -> SolverState f c Bool

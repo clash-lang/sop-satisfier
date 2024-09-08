@@ -17,7 +17,7 @@ import qualified Data.Map as M
 import SoPSat.SoP
 import qualified SoPSat.SoP as SoP
 import SoPSat.Internal.SoP
-  (Atom(..), Symbol(..), Product(..), SoP(..))
+  (Symbol(..), Product(..), SoP(..))
 import SoPSat.Internal.Unify
 import SoPSat.Internal.Range
 

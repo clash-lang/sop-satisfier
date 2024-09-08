@@ -1,3 +1,4 @@
+{-# LANGUAGE ScopedTypeVariables #-}
 module SoPSat.Internal.NewtonsMethod
 where
 
@@ -61,7 +62,7 @@ derivative :: (Ord f, Ord c, Floating n)
            -- ^ Atom to take a derivetive with respect to
            -> (Map (Atom f c) n -> n)
            -- ^ Function from bindings, representing point,
-           -- to value of the derivative at that point           
+           -- to value of the derivative at that point
 derivative sop symb = \binds -> sum $ d <*> [binds]
   where d = map (`derivativeProduct` symb) $ unS sop
 
@@ -105,7 +106,8 @@ derivativeSymbol e@(E b p) atom = \binds ->
         logExpr = log. evalSoP b
 
 -- | Finds if an expression can be equal to zero
-newtonMethod :: (Ord f, Ord c, Ord n, Floating n)
+newtonMethod :: forall f c n
+              . (Ord f, Ord c, Ord n, Floating n)
              => SoP f c
              -- ^ Expression to check
              -> Either (Map (Atom f c) n) (Map (Atom f c) n)
@@ -118,6 +120,7 @@ newtonMethod sop = go init_guess steps
     init_guess = M.fromSet (const 10) consts
     steps = 40
 
+    go :: Map (Atom f c) n -> Word -> Either (Map (Atom f c) n) (Map (Atom f c) n)
     go guess 0 = Left guess
     go guess n
       | val <= 0.1 = Right guess

@@ -3,7 +3,7 @@ where
 
 -- External
 import Data.Either (partitionEithers)
-import Data.List (sort)
+import Data.List (intercalate,sort)
 
 -- | Atomic part of a @SoP@
 -- like constants and unknown functions
@@ -11,6 +11,10 @@ data Atom f c
   = C c -- ^ Constant
   | F f [SoP f c] -- ^ Unknown function
   deriving (Eq, Ord)
+
+instance (Show f, Show c) => Show (Atom f c) where
+  show (C c) = show c
+  show (F f args) = show f ++ "(" ++ intercalate ", " (map show args) ++ ")"
 
 -- | The most basic part used during reasoning:
 -- - Numbers
@@ -22,6 +26,11 @@ data Symbol f c
   | E (SoP f c) (Product f c) -- ^ Exponentiation
   deriving (Eq, Ord)
 
+instance (Show f, Show c) => Show (Symbol f c) where
+  show (E s p) = show s ++ "^" ++ show p
+  show (I i) = show i
+  show (A a) = show a
+
 -- | Product of symbols
 newtype Product f c = P { unP :: [Symbol f c] }
   deriving Eq
@@ -32,6 +41,10 @@ instance (Ord f, Ord c) => Ord (Product f c) where
   compare (P (_:_)) (P [_])   = GT
   compare (P xs)    (P ys)    = compare xs ys
 
+instance (Show f, Show c) => Show (Product f c) where
+  show (P [s]) = show s
+  show (P ss) = "(" ++ intercalate " * " (map show ss) ++ ")"
+
 -- | Sum of Products
 newtype SoP f c = S { unS :: [Product f c] }
   deriving Ord
@@ -41,6 +54,9 @@ instance (Eq f, Eq c) => Eq (SoP f c) where
   (S [P [I 0]]) == (S []) = True
   (S ps1) == (S ps2)      = ps1 == ps2
 
+instance (Show f, Show c) => Show (SoP f c) where
+  show (S [p]) = show p
+  show (S ps) = "(" ++ intercalate " + " (map show ps) ++ ")"
 
 mergeWith :: (a -> a -> Either a a) -> [a] -> [a]
 mergeWith _ [] = []

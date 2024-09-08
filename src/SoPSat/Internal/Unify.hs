@@ -184,7 +184,7 @@ splitSoP u v = (lhs, rhs)
 
     neg (P ((I i):_)) = i < 0
     neg _ = False
-    
+
 collectBases :: Product f c -> Maybe ([SoP f c],[Product f c])
 collectBases = fmap unzip . traverse go . unP
   where
@@ -212,7 +212,7 @@ integerLogBase' b m = snd (go b)
   where
     go :: Integer -> (Integer, Integer)
     go pw | m < pw = (m, 0)
-    go pw = case go (pw ^ 2) of
+    go pw = case go (pw ^ (2 :: Int)) of
               (q, e) | q < pw -> (q, 2 * e)
               (q, e) -> (q `quot` pw, 2 * e + 1)
 
@@ -220,4 +220,3 @@ integerLogBase' b m = snd (go b)
 integerRt :: Integer -> Integer -> Maybe Integer
 integerRt 1 y = Just y
 integerRt x y = find ((== y) . (^ x)) [1..y]
-
