@@ -10,8 +10,8 @@ description:
     It also provides limited support of exponentiations and subtraction.
 license:            BSD-3-Clause
 license-file:       LICENSE
-author:             Aleksandr Pokatilov
-maintainer:         pokatilov0802@gmail.com
+author:             Aleksandr Pokatilov <pokatilov0802@gmail.com>
+maintainer:         QBayLogic B.V. <devops@qbaylogic.com>
 build-type:         Simple
 category:           Solver, Symbolic Arithmetic
 extra-doc-files:    CHANGELOG.md
@@ -19,7 +19,7 @@ extra-doc-files:    CHANGELOG.md
 
 source-repository head
     type: git
-    location: https://github.com/NeuroCorgi/sop-satisfier
+    location: https://github.com/clash-lang/sop-satisfier
 
 common warnings
     ghc-options: -Wall
