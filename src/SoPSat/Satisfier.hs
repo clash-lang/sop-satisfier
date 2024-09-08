@@ -1,80 +1,91 @@
 {-# LANGUAGE RecordWildCards #-}
 
-module SoPSat.Satisfier
-  ( -- * State
-    SolverState
-    -- * State manipulation
-  , declare
-  , assert
-  , unify
-    -- * State information
-  , range
-  , ranges
-    -- * State execution
-  , withState
-  , runStatements
-  , evalStatements
-    -- * Expressions
-  , evalSoP
-  )
+module SoPSat.Satisfier (
+  -- * State
+  SolverState,
+
+  -- * State manipulation
+  declare,
+  assert,
+  unify,
+
+  -- * State information
+  range,
+  ranges,
+
+  -- * State execution
+  withState,
+  runStatements,
+  evalStatements,
+
+  -- * Expressions
+  evalSoP,
+)
 where
 
 import Control.Applicative ((<|>))
-import Control.Arrow       (second)
-import Control.Monad       (when, (>=>), unless)
+import Control.Arrow (second)
+import Control.Monad (unless, when, (>=>))
 
 import Data.Map (Map)
 import qualified Data.Map as M
 import Data.Maybe (isNothing)
 
-import SoPSat.SoP
-import SoPSat.Internal.SoP
-  (Atom(..), Symbol(..), Product(..), SoP(..))
-import SoPSat.Internal.Unify
-import SoPSat.Internal.Range
 import SoPSat.Internal.NewtonsMethod
+import SoPSat.Internal.Range
+import SoPSat.Internal.SoP (
+  Atom (..),
+  Product (..),
+  SoP (..),
+  Symbol (..),
+ )
 import SoPSat.Internal.SolverMonad
-
+import SoPSat.Internal.Unify
+import SoPSat.SoP
 
 parts :: [a] -> [[a]]
 parts [] = []
-parts (x:xs) = xs : map (x:) (parts xs)
+parts (x : xs) = xs : map (x :) (parts xs)
 
-
--- | Declares atom in the state
--- ignores constants and only declare function arguments
+{- | Declares atom in the state
+ignores constants and only declare function arguments
+-}
 declareAtom :: (Ord f, Ord c) => Atom f c -> SolverState f c Bool
 declareAtom (C _) = return True
 declareAtom (F _ args) = and <$> mapM declareSoP args
 
--- | Declares symbol in the state with the default interval
--- If symbol exists preserves the old interval
+{- | Declares symbol in the state with the default interval
+If symbol exists preserves the old interval
+-}
 declareSymbol :: (Ord f, Ord c) => Symbol f c -> SolverState f c Bool
 declareSymbol (I _) = return True
 declareSymbol (A a) = do
   existing <- getRanges
   when (isNothing (M.lookup a existing)) (putRange a rangeNatural)
   declareAtom a
-  where
-    rangeNatural = Range (Bound (int 0)) Inf
+ where
+  rangeNatural = Range (Bound (int 0)) Inf
 declareSymbol (E b p) = (&&) <$> declareSoP b <*> declareProduct p
 
 -- | Similar to @declareSoP@ but for @Product@
 declareProduct :: (Ord f, Ord c) => Product f c -> SolverState f c Bool
 declareProduct = fmap and . mapM declareSymbol . unP
 
--- | Declare SoP in the state with default values
--- Creates range for free-variables
+{- | Declare SoP in the state with default values
+Creates range for free-variables
+-}
 declareSoP :: (Ord f, Ord c) => SoP f c -> SolverState f c Bool
 declareSoP s@(S ps)
-  | left /= int 0 = (&&) <$> (and <$> mapM declareProduct ps) <*> assert (SoPE left right LeR)
+  | left /= int 0 =
+      (&&) <$> (and <$> mapM declareProduct ps) <*> assert (SoPE left right LeR)
   | otherwise = and <$> mapM declareProduct ps
-  where
-    (left, right) = splitSoP (int 0) s
+ where
+  (left, right) = splitSoP (int 0) s
 
--- | Declare expression to state, returns normalised expression
---
--- Common for @declare@, @assert@, and @unify@
+{- | Declare expression to state, returns normalised expression
+
+Common for @declare@, @assert@, and @unify@
+-}
 declareToState :: (Ord f, Ord c) => SoPE f c -> SolverState f c (SoPE f c)
 declareToState SoPE{..} = do
   r1 <- declareSoP lhs
@@ -86,16 +97,17 @@ declareToState SoPE{..} = do
   unless (r1 && r2) (fail "")
   return (SoPE lhs' rhs' op)
 
-
--- | Declare equality of two expressions
--- Adds new unifiers to the state
-declareEq :: (Ord f, Ord c)
-          => SoP f c
-          -- ^ First expression
-          -> SoP f c
-          -- ^ Second expression
-          -> SolverState f c Bool
-          -- ^ Similar to @declare@ but handles only equalities
+{- | Declare equality of two expressions
+Adds new unifiers to the state
+-}
+declareEq ::
+  (Ord f, Ord c) =>
+  -- | First expression
+  SoP f c ->
+  -- | Second expression
+  SoP f c ->
+  -- | Similar to @declare@ but handles only equalities
+  SolverState f c Bool
 declareEq u v =
   do
     (Range low1 up1) <- getRangeSoP u
@@ -108,40 +120,40 @@ declareEq u v =
     --
     -- g(x) in [1,5] and forall x  g(x) = f(x) then f(x) in [1,5]
     lowerUpdate <-
-      case (lowRes,low1,low2) of
-        (True,_,Bound lowB2) -> propagateInEqSoP u GeR lowB2
-        (False,Bound lowB1,_) -> propagateInEqSoP v GeR lowB1
-        (_,_,_) -> return True
+      case (lowRes, low1, low2) of
+        (True, _, Bound lowB2) -> propagateInEqSoP u GeR lowB2
+        (False, Bound lowB1, _) -> propagateInEqSoP v GeR lowB1
+        (_, _, _) -> return True
 
     upperUpdate <-
-      case (upRes,up1,up2) of
-        (True,_,Bound upB2) -> propagateInEqSoP u LeR upB2
-        (False,Bound upB1,_) -> propagateInEqSoP v LeR upB1
-        (_,_,_) -> return True
+      case (upRes, up1, up2) of
+        (True, _, Bound upB2) -> propagateInEqSoP u LeR upB2
+        (False, Bound upB1, _) -> propagateInEqSoP v LeR upB1
+        (_, _, _) -> return True
 
     declareEq' u v
     return (lowerUpdate && upperUpdate)
-  where
-    boundComp Inf _ = return False
-    boundComp _ Inf = return True
-    boundComp (Bound a) (Bound b) = assert (SoPE a b LeR)
+ where
+  boundComp Inf _ = return False
+  boundComp _ Inf = return True
+  boundComp (Bound a) (Bound b) = assert (SoPE a b LeR)
 
 declareEq' :: (Ord f, Ord c) => SoP f c -> SoP f c -> SolverState f c ()
 declareEq' (S [P [A a]]) v = putUnifiers [Subst a v]
 declareEq' u (S [P [A a]]) = putUnifiers [Subst a u]
 declareEq' u v = putUnifiers $ unifiers u v
 
-
 -- | Updates interval information for a symbol
-propagateInEqSymbol :: (Ord f, Ord c)
-                    => Symbol f c
-                    -- ^ Updated symbol
-                    -> OrdRel
-                    -- ^ Relationship between the symbol and target
-                    -> SoP f c
-                    -- ^ Target Boundary
-                    -> SolverState f c Bool
-                    -- ^ Similat to @declareInEq@
+propagateInEqSymbol ::
+  (Ord f, Ord c) =>
+  -- | Updated symbol
+  Symbol f c ->
+  -- | Relationship between the symbol and target
+  OrdRel ->
+  -- | Target Boundary
+  SoP f c ->
+  -- | Similat to @declareInEq@
+  SolverState f c Bool
 propagateInEqSymbol (I _) _ _ =
   return True -- No need to update numbers
 propagateInEqSymbol (A a) rel bound = do
@@ -150,85 +162,95 @@ propagateInEqSymbol (A a) rel bound = do
   -- The check is done before propagation
   -- This assumption is potentially wrong
   case rel of
-    LeR
-      -> putRange a (Range low rangeBound)
-    GeR
-      -> putRange a (Range rangeBound up)
+    LeR ->
+      putRange a (Range low rangeBound)
+    GeR ->
+      putRange a (Range rangeBound up)
     EqR -> error "propagateInEqSymbol:EqR: unreachable"
   return True
-  where
-    rangeBound = Bound bound
+ where
+  rangeBound = Bound bound
 propagateInEqSymbol (E b (P [I i])) rel (S [P [I j]])
-  | (Just p) <- integerRt i j
-  = propagateInEqSoP b rel (int p)
+  | (Just p) <- integerRt i j =
+      propagateInEqSoP b rel (int p)
 propagateInEqSymbol (E (S [P [I i]]) p) rel (S [P [I j]])
-  | (Just e) <- integerLogBase i j
-  = propagateInEqProduct p rel (int e)
+  | (Just e) <- integerLogBase i j =
+      propagateInEqProduct p rel (int e)
 propagateInEqSymbol _ _ _ = fail ""
 
 -- | Propagates interval information down the Product
-propagateInEqProduct :: (Ord f, Ord c)
-                     => Product f c
-                     -- ^ Updates expression
-                     -> OrdRel
-                     -- ^ Relationship between the expression and target
-                     -> SoP f c
-                     -- ^ Target boundary
-                     -> SolverState f c Bool
-                     -- ^ Similar to @declareInEq@
+propagateInEqProduct ::
+  (Ord f, Ord c) =>
+  -- | Updates expression
+  Product f c ->
+  -- | Relationship between the expression and target
+  OrdRel ->
+  -- | Target boundary
+  SoP f c ->
+  -- | Similar to @declareInEq@
+  SolverState f c Bool
 propagateInEqProduct (P [symb]) rel target_bound = propagateInEqSymbol symb rel target_bound
 propagateInEqProduct (P ss) rel target_bound =
   and <$> mapM (uncurry propagate) (zipWith (curry (second P)) ss (parts ss))
-  where
-    -- a <= x * y => a/y <= x and a/x <= y
-    -- Currently simply propagating the bound further
-    -- a <= x * y => a <= x and a <= y
-    propagate symb _prod = propagateInEqSymbol
-                          symb rel
-                          target_bound
-                          -- (target_bound |/| prod)
+ where
+  -- a <= x * y => a/y <= x and a/x <= y
+  -- Currently simply propagating the bound further
+  -- a <= x * y => a <= x and a <= y
+  propagate symb _prod =
+    propagateInEqSymbol
+      symb
+      rel
+      target_bound
+
+-- (target_bound |/| prod)
 
 -- | Propagates interval information down the SoP
-propagateInEqSoP :: (Ord f, Ord c)
-                 => SoP f c
-                 -- ^ Updated expression
-                 -> OrdRel
-                 -- ^ Relationship between the expression and target
-                 -> SoP f c
-                 -- ^ Target boundary
-                 -> SolverState f c Bool
-                 -- ^ Similar to @declareInEq@
+propagateInEqSoP ::
+  (Ord f, Ord c) =>
+  -- | Updated expression
+  SoP f c ->
+  -- | Relationship between the expression and target
+  OrdRel ->
+  -- | Target boundary
+  SoP f c ->
+  -- | Similar to @declareInEq@
+  SolverState f c Bool
 propagateInEqSoP (S [P [symb]]) rel target_bound = propagateInEqSymbol symb rel target_bound
 propagateInEqSoP (S ps) rel target_bound =
   and <$> mapM (uncurry propagate) (zipWith (curry (second S)) ps (parts ps))
-  where
-    -- a <= x + y => a - y <= x and a - x <= y
-    propagate prod sm = propagateInEqProduct
-                        prod rel
-                        (target_bound |-| sm)
+ where
+  -- a <= x + y => a - y <= x and a - x <= y
+  propagate prod sm =
+    propagateInEqProduct
+      prod
+      rel
+      (target_bound |-| sm)
 
--- | Declare inequality of two expressions
--- Updates interval information in the state
-declareInEq :: (Ord f, Ord c)
-            => OrdRel
-            -- ^ Relationship between expressions
-            -> SoP f c
-            -- ^ Left-hand side expression
-            -> SoP f c
-            -- ^ Right-hand side expression
-            -> SolverState f c Bool
-            -- ^ Similar to @declare@ but handles only inequalities
+{- | Declare inequality of two expressions
+Updates interval information in the state
+-}
+declareInEq ::
+  (Ord f, Ord c) =>
+  -- | Relationship between expressions
+  OrdRel ->
+  -- | Left-hand side expression
+  SoP f c ->
+  -- | Right-hand side expression
+  SoP f c ->
+  -- | Similar to @declare@ but handles only inequalities
+  SolverState f c Bool
 declareInEq EqR u v = declareEq u v >> return True
 declareInEq op u v =
-    let
-      (u', v') = splitSoP u v
+  let
+    (u', v') = splitSoP u v
+   in
     -- If inequality holds with current interval information
     -- then no need to update it
-    in do
+    do
       res <- assert (SoPE u' v' op)
-      if res then return True
-        else
-        case op of
+      if res
+        then return True
+        else case op of
           LeR -> do
             a1 <- propagateInEqSoP u' LeR v'
             a2 <- propagateInEqSoP v' GeR u'
@@ -239,37 +261,41 @@ declareInEq op u v =
             return (a1 && a2)
 
 -- | Declare expression to the state
-declare :: (Ord f, Ord c)
-        => SoPE f c
-        -- ^ Expression to declare
-        -> SolverState f c Bool
-        -- ^ - True - if expression was declared
-        --   - False - if expression contradicts current state
-        --
-        -- State will become @Nothing@ if it cannot reason about these kind of expressions
-declare = declareToState >=> \SoPE{..} ->
-  case op of
-    EqR -> declareEq lhs rhs
-    _   -> declareInEq op lhs rhs
+declare ::
+  (Ord f, Ord c) =>
+  -- | Expression to declare
+  SoPE f c ->
+  -- | - True - if expression was declared
+  --   - False - if expression contradicts current state
+  --
+  -- State will become @Nothing@ if it cannot reason about these kind of expressions
+  SolverState f c Bool
+declare =
+  declareToState >=> \SoPE{..} ->
+    case op of
+      EqR -> declareEq lhs rhs
+      _ -> declareInEq op lhs rhs
 
 -- | Assert that two expressions are equal using unifiers from the state
-assertEq :: (Ord f, Ord c)
-         => SoP f c
-         -- ^ Left-hand side expression
-         -> SoP f c
-         -- ^ Right-hand size expression
-         -> SolverState f c Bool
-         -- ^ Similar to assert but only checks for equality @lhs = rhs@
+assertEq ::
+  (Ord f, Ord c) =>
+  -- | Left-hand side expression
+  SoP f c ->
+  -- | Right-hand size expression
+  SoP f c ->
+  -- | Similar to assert but only checks for equality @lhs = rhs@
+  SolverState f c Bool
 assertEq lhs rhs = return (lhs == rhs)
 
 -- | Assert using only ranges stores in the state
-assertRange :: (Ord f, Ord c)
-            => SoP f c
-            -- ^ Left-hand side expression
-            -> SoP f c
-            -- ^ Right-hand size expression
-            -> SolverState f c Bool
-            -- ^ Similar to @assert@ but uses only intervals from the state to check @lhs <= rhs@
+assertRange ::
+  (Ord f, Ord c) =>
+  -- | Left-hand side expression
+  SoP f c ->
+  -- | Right-hand size expression
+  SoP f c ->
+  -- | Similar to @assert@ but uses only intervals from the state to check @lhs <= rhs@
+  SolverState f c Bool
 assertRange lhs rhs = uncurry assertRange' $ splitSoP lhs rhs
 
 assertRange' :: (Ord f, Ord c) => SoP f c -> SoP f c -> SolverState f c Bool
@@ -280,118 +306,138 @@ assertRange' lhs rhs = do
   -- If both sides increase infinitely, fail to use Newton's method
   -- Information about rate of growth is required
   -- to check inequality on the whole domain
-  if up1 == up2 && up2 == Inf then fail ""
-    else case (up1,low2) of
-           (Inf,_) -> return False
-           (_,Inf) -> return False
-           (Bound ub1, Bound lb2)
-           -- Orders of recursive checks matters
-           -- @runLemma2@ in the tests loops indefinitely
-           -- possibly other test cases too
-             -> do
-               r1 <- if ub1 /= lhs then assert (SoPE ub1 rhs LeR)
-                                        else return False
-               r2 <- if lb2 /= rhs then assert (SoPE lhs lb2 LeR)
-                                        else return False
-               return (r1 || r2)
+  if up1 == up2 && up2 == Inf
+    then fail ""
+    else case (up1, low2) of
+      (Inf, _) -> return False
+      (_, Inf) -> return False
+      (Bound ub1, Bound lb2) ->
+        -- Orders of recursive checks matters
+        -- @runLemma2@ in the tests loops indefinitely
+        -- possibly other test cases too
+        do
+          r1 <-
+            if ub1 /= lhs
+              then assert (SoPE ub1 rhs LeR)
+              else return False
+          r2 <-
+            if lb2 /= rhs
+              then assert (SoPE lhs lb2 LeR)
+              else return False
+          return (r1 || r2)
 
 -- | Assert using only Newton's method
-assertNewton :: (Ord f, Ord c)
-             => SoP f c
-             -- ^ Left-hand side expression
-             -> SoP f c
-             -- ^ Right-hand side expression
-             -> SolverState f c Bool
-             -- ^ Similar to @assert@ but uses only Newton's method to check @lhs <= rhs@
+assertNewton ::
+  (Ord f, Ord c) =>
+  -- | Left-hand side expression
+  SoP f c ->
+  -- | Right-hand side expression
+  SoP f c ->
+  -- | Similar to @assert@ but uses only Newton's method to check @lhs <= rhs@
+  SolverState f c Bool
 assertNewton lhs rhs =
   let
     expr = rhs |-| lhs |+| int 1
-  in checkExpr expr
-  where
-    -- hasFunction :: (Ord f, Ord c) => SoP f c -> Bool
-    -- hasFunction = any isFunction . atoms
-
-    checkExpr :: (Ord f, Ord c) => SoP f c -> SolverState f c Bool
+   in
     checkExpr expr
-      | (Right binds) <- newtonMethod expr
-      = not <$> checkBinds binds
-      | otherwise
-      = return True
+ where
+  -- hasFunction :: (Ord f, Ord c) => SoP f c -> Bool
+  -- hasFunction = any isFunction . atoms
 
-    checkBinds :: (Ord f, Ord c) => Map (Atom f c) Double -> SolverState f c Bool
-    checkBinds binds = and <$> mapM (uncurry (checkBind binds)) (M.toList binds)
+  checkExpr :: (Ord f, Ord c) => SoP f c -> SolverState f c Bool
+  checkExpr expr
+    | (Right binds) <- newtonMethod expr =
+        not <$> checkBinds binds
+    | otherwise =
+        return True
 
-    checkBind :: (Ord f, Ord c, Ord n, Floating n) => Map (Atom f c) n -> Atom f c -> n -> SolverState f c Bool
-    checkBind binds c v = do
-      (Range left right) <- getRange c
-      return (checkLeft binds v left && checkRight binds v right)
+  checkBinds :: (Ord f, Ord c) => Map (Atom f c) Double -> SolverState f c Bool
+  checkBinds binds = and <$> mapM (uncurry (checkBind binds)) (M.toList binds)
 
-    checkLeft :: (Ord f, Ord c, Ord n, Floating n) => Map (Atom f c) n -> n -> Bound f c -> Bool
-    checkLeft _ _ Inf = True
-    checkLeft binds v (Bound sop) = evalSoP sop binds <= v
+  checkBind ::
+    (Ord f, Ord c, Ord n, Floating n) =>
+    Map (Atom f c) n -> Atom f c -> n -> SolverState f c Bool
+  checkBind binds c v = do
+    (Range left right) <- getRange c
+    return (checkLeft binds v left && checkRight binds v right)
 
-    checkRight :: (Ord f, Ord c, Ord n, Floating n) => Map (Atom f c) n -> n -> Bound f c -> Bool
-    checkRight _ _ Inf = True
-    checkRight binds v (Bound sop) = v <= evalSoP sop binds
+  checkLeft ::
+    (Ord f, Ord c, Ord n, Floating n) => Map (Atom f c) n -> n -> Bound f c -> Bool
+  checkLeft _ _ Inf = True
+  checkLeft binds v (Bound sop) = evalSoP sop binds <= v
+
+  checkRight ::
+    (Ord f, Ord c, Ord n, Floating n) => Map (Atom f c) n -> n -> Bound f c -> Bool
+  checkRight _ _ Inf = True
+  checkRight binds v (Bound sop) = v <= evalSoP sop binds
 
 -- | Assert if given expression holds in the current environment
-assert :: (Ord f, Ord c)
-       => SoPE f c
-       -- ^ Asserted expression
-       -> SolverState f c Bool
-       -- ^ - True - if expressions holds
-       --   - False - otherwise
-       --
-       -- State will become @Nothing@ if it cannot reason about these kind of expressions
-assert = declareToState >=> \SoPE{..} ->
-  case op of
-    EqR -> assertEq lhs rhs
-    LeR -> do
-      r1 <- assertEq lhs rhs
-      if r1 then return True
-        else do
-        assertRange lhs rhs <|> assertNewton lhs rhs
-    GeR -> do
-      r1 <- assertEq lhs rhs
-      if r1 then return True
-        else do
-        assertRange rhs lhs <|> assertNewton rhs lhs
+assert ::
+  (Ord f, Ord c) =>
+  -- | Asserted expression
+  SoPE f c ->
+  -- | - True - if expressions holds
+  --   - False - otherwise
+  --
+  -- State will become @Nothing@ if it cannot reason about these kind of expressions
+  SolverState f c Bool
+assert =
+  declareToState >=> \SoPE{..} ->
+    case op of
+      EqR -> assertEq lhs rhs
+      LeR -> do
+        r1 <- assertEq lhs rhs
+        if r1
+          then return True
+          else do
+            assertRange lhs rhs <|> assertNewton lhs rhs
+      GeR -> do
+        r1 <- assertEq lhs rhs
+        if r1
+          then return True
+          else do
+            assertRange rhs lhs <|> assertNewton rhs lhs
 
--- | Get unifiers for an expression
--- minimal set of expressions that should hold for the expression to hold
-unify :: (Ord f, Ord c)
-      => SoPE f c
-      -- ^ Unified expression
-      -> SolverState f c [SoPE f c]
-      -- ^ List of unifiers - Minimal list of unifiers for the expression to hold.
-      -- The list is empty, if it never holds
-      --
-      -- State will always be valid after a call
-unify = declareToState >=> \expr@SoPE{..} ->
+{- | Get unifiers for an expression
+minimal set of expressions that should hold for the expression to hold
+-}
+unify ::
+  (Ord f, Ord c) =>
+  -- | Unified expression
+  SoPE f c ->
+  -- | List of unifiers - Minimal list of unifiers for the expression to hold.
+  -- The list is empty, if it never holds
+  --
+  -- State will always be valid after a call
+  SolverState f c [SoPE f c]
+unify =
+  declareToState >=> \expr@SoPE{..} ->
     case op of
       EqR -> return (filter (/= expr) $ map unifier2SoPE (unifiers lhs rhs))
       _ -> return []
-  where
-    unifier2SoPE Subst{..} = SoPE (symbol sConst) sSoP EqR
+ where
+  unifier2SoPE Subst{..} = SoPE (symbol sConst) sSoP EqR
 
 -- | Get range of possible values for an expression
-range :: (Ord f, Ord c)
-      => SoP f c
-      -- ^ Expression
-      -> SolverState f c (Maybe (SoP f c), Maybe (SoP f c))
-      -- ^ (lower bound, upper bound) - Range for an expression
-      --
-      -- @Nothing@ means that the expression is unbounded
-      -- from that side
+range ::
+  (Ord f, Ord c) =>
+  -- | Expression
+  SoP f c ->
+  -- | (lower bound, upper bound) - Range for an expression
+  --
+  -- @Nothing@ means that the expression is unbounded
+  -- from that side
+  SolverState f c (Maybe (SoP f c), Maybe (SoP f c))
 range sop = do
   _ <- declareSoP sop
   (Range low up) <- getRangeSoP sop
   return (boundSoP low, boundSoP up)
 
 -- | Get list of all ranges stored in a state
-ranges :: (Ord f, Ord c)
-       => SolverState f c [(Maybe (SoP f c), SoP f c, Maybe (SoP f c))]
-       -- ^ (lower bound, symbol, upper bound) - Similar to @range@
-       --     but also provides expression
+ranges ::
+  (Ord f, Ord c) =>
+  -- | (lower bound, symbol, upper bound) - Similar to @range@
+  --     but also provides expression
+  SolverState f c [(Maybe (SoP f c), SoP f c, Maybe (SoP f c))]
 ranges =
-  map (\(a,Range low up) -> (boundSoP low, symbol a, boundSoP up)) . M.toList <$> getRanges
+  map (\(a, Range low up) -> (boundSoP low, symbol a, boundSoP up)) . M.toList <$> getRanges

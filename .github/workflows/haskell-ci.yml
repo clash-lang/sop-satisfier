@@ -204,3 +204,14 @@ jobs:
         with:
           key: ${{ runner.os }}-${{ matrix.compiler }}-${{ github.sha }}
           path: ~/.cabal/store
+  fourmolu:
+    runs-on: ubuntu-latest
+    steps:
+      # Note that you must checkout your code before running haskell-actions/run-fourmolu
+      - uses: actions/checkout@v4
+      - uses: haskell-actions/run-fourmolu@v10
+        with:
+          version: "0.16.2.0"
+          pattern: |
+            src/**/*.hs
+            tests/**/*.hs
