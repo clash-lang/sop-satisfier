@@ -8,7 +8,7 @@ description:
     It can reason about expressions contatining
     addition and multiplication.
     It also provides limited support of exponentiations and subtraction.
-license:            GPL-3.0-or-later
+license:            BSD-3-Clause
 license-file:       LICENSE
 author:             Aleksandr Pokatilov
 maintainer:         pokatilov0802@gmail.com
