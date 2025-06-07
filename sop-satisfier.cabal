@@ -8,7 +8,7 @@ description:
     It can reason about expressions contatining
     addition and multiplication.
     It also provides limited support of exponentiations and subtraction.
-license:            BSD-3-Clause
+license:            BSD-2-Clause
 license-file:       LICENSE
 author:             Aleksandr Pokatilov <pokatilov0802@gmail.com>
 maintainer:         QBayLogic B.V. <devops@qbaylogic.com>
